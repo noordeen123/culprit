@@ -3,7 +3,7 @@
 Two sources, in priority order:
   1. A GitHub PR via ``gh`` (title, body, labels, refs, commits, files, diff).
   2. Local git only (current/named branch vs a base) when there's no PR or no
-     gh auth — fully offline, loses PR title/labels/linked-issue signal.
+     gh auth - fully offline, loses PR title/labels/linked-issue signal.
 
 The returned dict is the single input every downstream step consumes, so the
 rest of the engine never cares which source produced it.
@@ -63,7 +63,7 @@ def _commit_date(repo: str, rev: Optional[str]) -> Optional[str]:
     return out.splitlines()[0] if out else None
 
 
-# ── host detection + deep-link templates (multi-forge) ───────────────────────
+# -- host detection + deep-link templates (multi-forge) -----------------------
 
 def _remote_parts(repo: str):
     """(host, 'owner/repo', web_url) from origin, or None."""
@@ -145,7 +145,7 @@ def _local_commits(repo: str, base: str, head: str) -> List[Dict[str, str]]:
 def from_local(repo: str, base: Optional[str] = None, head: Optional[str] = None) -> Dict[str, Any]:
     """Build context from local git alone (no PR API).
 
-    ``base`` None means "the change I just made" — the latest commit
+    ``base`` None means "the change I just made" - the latest commit
     (``<head>~1``). This is bounded and is almost always what you want for a
     local branch whose upstream base may be far behind. Pass an explicit
     ``base`` (e.g. ``develop``) to analyze a whole branch instead.
@@ -158,7 +158,7 @@ def from_local(repo: str, base: Optional[str] = None, head: Optional[str] = None
         if _rev(repo, base) is None:  # root commit has no parent
             base = _EMPTY_TREE
     elif _rev(repo, base) is None:
-        # An explicit base that doesn't exist — fall back to main/master.
+        # An explicit base that doesn't exist - fall back to main/master.
         for alt in ("main", "master", "origin/HEAD"):
             if _rev(repo, alt) is not None:
                 base = alt
@@ -276,7 +276,7 @@ def _build_rest(repo: str, source: str, pr_number, title, body, labels,
 def from_pr_rest(repo: str, pr: int) -> Optional[Dict[str, Any]]:
     """Public-repo PR/MR context with no ``gh`` auth: the forge's REST API for
     metadata + a read-only ``git fetch`` of the PR head and base. Supports GitHub
-    and GitLab; returns None for other hosts or on any failure (→ local fallback).
+    and GitLab; returns None for other hosts or on any failure (-> local fallback).
     """
     parts = _remote_parts(repo)
     if parts is None:

@@ -5,7 +5,7 @@ base history gives every commit that ever modified those exact lines, oldest
 first. We tag the earliest as ``origin``, the prime-suspect commit as
 ``suspect``, the rest as ``modified``, and append a synthetic ``fix`` step from
 the fix diff. That ordered list is what the HTML report visualizes as a vertical
-timeline (origin → … → the commit that broke it → the fix).
+timeline (origin -> ... -> the commit that broke it -> the fix).
 """
 from __future__ import annotations
 
@@ -129,7 +129,7 @@ def build_timeline(ctx: Dict[str, Any], repo: str, suspects: List[Dict[str, Any]
             steps = [steps[0]] + steps[-(max_steps - 1):]
             truncated = True
 
-        # Only the PRIME suspect is the red "broke" node — one clear culprit.
+        # Only the PRIME suspect is the red "broke" node - one clear culprit.
         # The earliest commit is the origin; everything else is a modification.
         # (Other ranked suspects still appear in the suspect-set section.)
         has_prime = any(st["hash"] == prime for st in steps)

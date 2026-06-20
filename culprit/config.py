@@ -1,11 +1,11 @@
 """Per-repo configuration so culprit can track a repo's real base branch (and host).
 
-Resolution order for the default base (local mode only — a PR always carries
+Resolution order for the default base (local mode only - a PR always carries
 its own base):
   1. ``--base`` on the CLI (handled by the caller)
   2. ``CULPRIT_BASE`` environment variable
   3. ``base = "..."`` in a ``.culprit.toml`` at the repo root
-  4. None → fall back to the latest commit (HEAD~1)
+  4. None -> fall back to the latest commit (HEAD~1)
 
 ``host`` (``CULPRIT_HOST`` / ``host = "gitlab"``) overrides host auto-detection
 for self-hosted forges where the URL alone can't tell GitHub from GitLab/Gitea.

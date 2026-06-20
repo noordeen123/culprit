@@ -1,4 +1,4 @@
-"""culprit — root-cause analysis for a PR or branch.
+"""culprit - root-cause analysis for a PR or branch.
 
 Repo-agnostic engine: deterministic git/PR analysis that emits structured JSON.
 The only LLM step (the "why it broke" narrative) is isolated behind

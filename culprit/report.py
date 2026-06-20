@@ -2,7 +2,7 @@
 
 The structured result is the machine-readable output (JSON); the skeleton is
 the human-readable scaffold the reasoning layer fills with the narrative.
-Neither step calls an LLM — that's isolated in ``culprit.reasoning``.
+Neither step calls an LLM - that's isolated in ``culprit.reasoning``.
 """
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ def build(ctx: Dict[str, Any], classification: Dict[str, Any],
 def _fmt_target(t: Dict[str, Any]) -> str:
     who = "PR #{}".format(t["pr_number"]) if t.get("pr_number") else "branch {}".format(
         t.get("head_ref"))
-    title = " — {}".format(t["title"]) if t.get("title") else ""
+    title = " - {}".format(t["title"]) if t.get("title") else ""
     return "{}{}  (base: {})".format(who, title, t.get("base_ref"))
 
 
@@ -56,14 +56,14 @@ def markdown_skeleton(result: Dict[str, Any]) -> str:
             lines.append("_No suspects found (base may not be fetched locally)._")
         for i, s in enumerate(b.get("suspects", []), 1):
             pr = " (PR #{})".format(s["pr_number"]) if s.get("pr_number") else ""
-            lines.append("{}. `{}` — {} — {}{}".format(
+            lines.append("{}. `{}` - {} - {}{}".format(
                 i, s["short"], s.get("author"), s.get("subject"), pr))
             lines.append("   - {} buggy line(s), weight {}, files: {}".format(
                 s["lines"], s.get("weight"), ", ".join(s.get("files", []))))
         lines.append("")
         lines.append("## Why it broke")
-        lines.append("_(reasoning layer fills: symptom → root cause → introducing commit "
-                     "→ why → fix assessment → test gap)_")
+        lines.append("_(reasoning layer fills: symptom -> root cause -> introducing commit "
+                     "-> why -> fix assessment -> test gap)_")
 
     if result.get("feature") is not None:
         f = result["feature"]
@@ -75,7 +75,7 @@ def markdown_skeleton(result: Dict[str, Any]) -> str:
                 lines.append("- {}".format(p))
         lines.append("**Most-depended-on changed files:**")
         for p, n in list(f.get("dependent_counts", {}).items())[:15]:
-            lines.append("- {} ← {} importer(s)".format(p, n))
+            lines.append("- {} <- {} importer(s)".format(p, n))
         if f.get("covering_tests"):
             lines.append("**Covering tests:**")
             for p in f["covering_tests"][:30]:

@@ -63,7 +63,7 @@ class ClaudeAPIAdapter(ReasoningAdapter):
             import anthropic
         except ImportError:
             raise RuntimeError(
-                "ClaudeAPIAdapter needs the 'anthropic' SDK — install with "
+                "ClaudeAPIAdapter needs the 'anthropic' SDK - install with "
                 "`pip install culprit[api]`."
             )
         if not self.api_key:

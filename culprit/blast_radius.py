@@ -2,7 +2,7 @@
 
 For each changed source file, find who imports it (reverse-import map), which
 tests cover those modules, and which touched files live in shared/core areas
-(high blast radius). Heuristic but grounded — the reasoning layer ranks risk
+(high blast radius). Heuristic but grounded - the reasoning layer ranks risk
 and recommends the test surface from this structured map.
 """
 from __future__ import annotations
@@ -41,9 +41,9 @@ def _importers(repo: str, token: str, exclude: str, source_globs: List[str]) -> 
         return []
     tok = re.escape(token)
     # An import-ish line that references the token as a delimited path segment.
-    # Covers JS/TS (`import x from '…/token'`, `require('…token…')`), Python
+    # Covers JS/TS (`import x from '.../token'`, `require('...token...')`), Python
     # (`from a.token import x`, `import a.token`), Java (`import a.b.Token;`),
-    # Go/Ruby/C (`"…/token"`, `<token.h>`). Uses POSIX classes only — git grep -E
+    # Go/Ruby/C (`".../token"`, `<token.h>`). Uses POSIX classes only - git grep -E
     # has no \w / \b, so token boundaries are spelled [^A-Za-z0-9_].
     pat = r"(import|require|include|from|use).*[^A-Za-z0-9_]{}([^A-Za-z0-9_]|$)".format(tok)
     args = ["grep", "-l", "-I", "-E", "-e", pat, "--"] + source_globs

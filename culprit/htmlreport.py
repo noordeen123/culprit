@@ -2,7 +2,7 @@
 
 One file, no external CDN, no build step: the template ships as package data,
 the result JSON and an optional narrative are injected as text nodes. Open the
-output in any browser — works offline.
+output in any browser - works offline.
 """
 from __future__ import annotations
 
