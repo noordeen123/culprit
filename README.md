@@ -19,6 +19,18 @@ or a **feature**, then:
 
 It is **read-only** — it never modifies your repo or the PR.
 
+## Example
+
+The visual report (`rca --html report.html`) for a bugfix — a one-line formula
+that was silently broken five months before it was fixed. The **line-evolution
+timeline** walks every commit that touched those lines: created → reformatted →
+**the commit that broke it (red)** → **the fix (green)**.
+
+![culprit RCA report](docs/report.png)
+
+A self-contained HTML file (no server, no CDN) with deep links, a bug-age banner,
+a test-gap callout, and expandable per-step diffs.
+
 ## Why the split design
 
 The deterministic git work (diff parsing, `git blame` / `git log -L`, the
@@ -36,9 +48,12 @@ Same engine, two frontends.
 ## Install
 
 ```bash
-pip install -e .            # engine + CLI
-pip install -e ".[api]"     # + Claude API reasoning layer (anthropic SDK)
+pip install culprit            # engine + CLI (rca / culprit)
+pip install "culprit[api]"     # + Claude API reasoning layer (anthropic SDK)
 ```
+
+Or with [pipx](https://pipx.pypa.io) for an isolated CLI: `pipx install culprit`.
+From source: `pip install -e ".[dev]"` then `pytest`.
 
 PR metadata uses the GitHub CLI when available: `brew install gh && gh auth login`.
 For **public repos you don't even need `gh`** — `rca --pr N` falls back to the
