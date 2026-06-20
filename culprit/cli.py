@@ -1,4 +1,4 @@
-"""culprit CLI — orchestrate the engine and emit a report.
+"""culprit CLI - orchestrate the engine and emit a report.
 
     rca                      # analyze the current branch (local git or its PR)
     rca --pr 16786           # analyze a specific GitHub PR
@@ -18,7 +18,8 @@ import os
 import sys
 from typing import Any, Dict, Optional
 
-from . import blast_radius, classify, config, evolution, pr_context, reasoning, report, suspect
+from . import (bisect, blast_radius, classify, config, evolution, pr_context,
+               reasoning, report, suspect)
 
 
 def analyze(repo: str, pr: Optional[int], base: str, head: Optional[str],
@@ -37,9 +38,9 @@ def analyze(repo: str, pr: Optional[int], base: str, head: Optional[str],
     if verdict == "feature":
         feature = blast_radius.analyze(ctx, repo)
     else:
-        # bugfix or unknown → run RCA (the more actionable default)
+        # bugfix or unknown -> run RCA (the more actionable default)
         bugfix = suspect.find_suspects(ctx, repo)
-        # Attach the line-evolution timeline (origin → … → suspect → fix).
+        # Attach the line-evolution timeline (origin -> ... -> suspect -> fix).
         bugfix["timeline"] = evolution.build_timeline(ctx, repo, bugfix.get("suspects", []))
         # Did the touched files have any tests? (why the bug slipped through)
         bugfix["test_gap"] = blast_radius.test_gap(ctx.get("changed_files", []), repo)
@@ -81,12 +82,17 @@ def main(argv: Optional[list] = None) -> int:
     p.add_argument("--repo", default=".", help="repo path (default: cwd)")
     p.add_argument("--base", default=None,
                    help="base ref for the diff. Default (local, no PR): the latest commit "
-                        "(HEAD~1) — 'the change I just made'. Pass a branch (e.g. develop) "
+                        "(HEAD~1) - 'the change I just made'. Pass a branch (e.g. develop) "
                         "to analyze a whole branch.")
     p.add_argument("--head", default=None, help="head ref (default: current branch)")
     p.add_argument("--last", action="store_true",
                    help="analyze only the latest commit (HEAD~1), ignoring the configured base")
     p.add_argument("--force", choices=["bugfix", "feature"], help="override classification")
+    p.add_argument("--bisect", metavar="CMD",
+                   help="repro/test command - runs git bisect (in a throwaway worktree) to "
+                        "confirm the suspect. Must exit non-zero when the bug is present.")
+    p.add_argument("--good", metavar="REF", help="known-good ref for --bisect (default: suspect's parent)")
+    p.add_argument("--bad", metavar="REF", help="known-bad ref for --bisect (default: the base)")
     p.add_argument("--mode", choices=["harness", "api"], default="harness",
                    help="reasoning layer (default: harness)")
     p.add_argument("--fast", action="store_true", help="api mode: use the faster/cheaper model")
@@ -103,7 +109,7 @@ def main(argv: Optional[list] = None) -> int:
 
     # Base resolution (local mode): --last forces latest commit; else explicit
     # --base; else the repo's configured base (CULPRIT_BASE / .culprit.toml);
-    # else None → latest commit.
+    # else None -> latest commit.
     if args.last:
         base = None
     elif args.base is not None:
@@ -112,6 +118,17 @@ def main(argv: Optional[list] = None) -> int:
         base = config.repo_base(repo)
 
     result = analyze(repo, pr=pr, base=base, head=args.head, force=args.force)
+
+    # Optional: confirm the suspect with a real git bisect (read-only, in a worktree).
+    if args.bisect and result.get("bugfix"):
+        result["bugfix"]["bisect"] = bisect.confirm(
+            result["target"], repo, result["bugfix"].get("suspects", []),
+            args.bisect, good=args.good, bad=args.bad)
+        sys.stderr.write("bisect: {}\n".format(
+            result["bugfix"]["bisect"].get("error")
+            or ("first-bad " + (result["bugfix"]["bisect"]["first_bad"] or {}).get("short", "?")
+                + (" (agrees with suspect)" if result["bugfix"]["bisect"].get("agrees_with_suspect")
+                   else " (differs from suspect)"))))
 
     if args.json:
         print(json.dumps(result, indent=2, default=str))

@@ -1,7 +1,7 @@
 # Contributing to culprit
 
 Thanks for your interest in improving culprit! Contributions of all kinds are
-welcome — bug reports, feature ideas, docs, and code.
+welcome - bug reports, feature ideas, docs, and code.
 
 ## Ground rules
 
@@ -28,22 +28,22 @@ The test suite builds throwaway git repos in temp dirs, so you need `git` on PAT
 
 ## Architecture (where things live)
 
-- `culprit/pr_context.py` — resolve a PR/branch into a normalized context (gh →
-  GitHub/GitLab REST → local git fallback); host detection + deep-link templates.
-- `culprit/classify.py` — bugfix-vs-feature scoring with evidence.
-- `culprit/suspect.py` — blame the buggy lines → ranked suspect set.
-- `culprit/evolution.py` — `git log -L` line-evolution timeline.
-- `culprit/blast_radius.py` — reverse-import map, covering tests, test-gap.
-- `culprit/reasoning.py` — the only LLM step, behind a pluggable adapter.
-- `culprit/report.py` / `htmlreport.py` / `templates/report.html` — structured
+- `culprit/pr_context.py` - resolve a PR/branch into a normalized context (gh ->
+  GitHub/GitLab REST -> local git fallback); host detection + deep-link templates.
+- `culprit/classify.py` - bugfix-vs-feature scoring with evidence.
+- `culprit/suspect.py` - blame the buggy lines -> ranked suspect set.
+- `culprit/evolution.py` - `git log -L` line-evolution timeline.
+- `culprit/blast_radius.py` - reverse-import map, covering tests, test-gap.
+- `culprit/reasoning.py` - the only LLM step, behind a pluggable adapter.
+- `culprit/report.py` / `htmlreport.py` / `templates/report.html` - structured
   result + the self-contained visual report.
-- `culprit/serve.py` — the interactive local web UI.
-- `culprit/cli.py` — the `rca` / `culprit` entrypoint.
+- `culprit/serve.py` - the interactive local web UI.
+- `culprit/cli.py` - the `rca` / `culprit` entrypoint.
 
 ## Pull requests
 
 1. Branch from `main` (`fix/...` or `feat/...`).
-2. Add or update tests under `tests/` — every behavior change should be covered.
+2. Add or update tests under `tests/` - every behavior change should be covered.
 3. Run `pytest -q` (CI runs it on Python 3.9 / 3.11 / 3.12).
 4. Keep new code in the same style as the surrounding code; no new runtime deps in
    the core engine without discussion.

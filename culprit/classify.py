@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Tuple
 _BUG_BRANCH = re.compile(r"^(bug|bugfix|fix|hotfix|patch)[/\-_]", re.I)
 _FEAT_BRANCH = re.compile(r"^(feat|feature|enhancement|chore|refactor)[/\-_]", re.I)
 
-# Leading [\W_]* tolerates real-world prefixes like "- fix:", "🚀 feat:", ": fixes".
+# Leading [\W_]* tolerates real-world prefixes like "- fix:", ": fixes", or a gitmoji.
 _BUG_PREFIX = re.compile(r"^[\W_]*(bug\s*)?fix(es|ed)?\b|^[\W_]*hotfix\b|^[\W_]*patch\b", re.I)
 _FEAT_PREFIX = re.compile(r"^[\W_]*(feat|feature|add|implement|introduce|chore|refactor)\b", re.I)
 
@@ -28,7 +28,7 @@ def _add(evidence: List[str], score: int, delta: int, msg: str) -> int:
 
 def classify(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """Return {verdict, confidence, evidence, score} from a pr_context dict."""
-    score = 0  # positive → bugfix, negative → feature
+    score = 0  # positive -> bugfix, negative -> feature
     evidence: List[str] = []
 
     branch = ctx.get("head_ref") or ""

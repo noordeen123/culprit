@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>culprit — RCA report</title>
+<title>culprit - RCA report</title>
 <style>
   :root {
     --bg:#0f1115; --panel:#171a21; --panel2:#1d212b; --line:#2a2f3a;
@@ -99,6 +99,14 @@
   .gap .lead { color:var(--suspect); font-weight:650; }
   .covered { border-color:var(--fix); }
   .covered .lead { color:var(--fix); font-weight:650; }
+  .bisect-ok { border-color:var(--fix); }
+  .bisect-ok .lead { color:var(--fix); font-weight:650; }
+  .bisect-diff { border-color:#d9a23a; }
+  .bisect-diff .lead { color:#d9a23a; font-weight:650; }
+  .confirm-badge { background:#163328; color:var(--fix); font-size:10px; font-weight:700;
+    padding:2px 6px; border-radius:5px; text-transform:uppercase; letter-spacing:.04em; margin-left:6px; }
+  .firstfail { background:#163328; color:var(--fix); font-size:10px; font-weight:700;
+    padding:2px 6px; border-radius:5px; }
   .graph { width:100%; background:#0c0e12; border:1px solid var(--line); border-radius:10px; }
   .graph text { font:11px ui-monospace,Menlo,monospace; fill:var(--muted); }
   .graph .gc-center { fill:#24304a; stroke:var(--accent); }
@@ -225,12 +233,12 @@
 
   function buildMarkdown(){
     var who = t.pr_number ? (PRT+' '+PRP+t.pr_number) : ('branch '+(t.head_ref||''));
-    var L = ['# RCA: '+who+(t.title?(' — '+t.title):''), ''];
+    var L = ['# RCA: '+who+(t.title?(' - '+t.title):''), ''];
     L.push('**'+(c.verdict||'unknown')+'** · confidence '+c.confidence+' · base `'+(t.base_ref||'')+'`', '');
     if(D.bugfix && (D.bugfix.suspects||[]).length){
       var p=D.bugfix.suspects[0];
       L.push('**Prime suspect:** `'+p.short+'`'+(p.pr_number?(' ('+PRP+p.pr_number+')'):'')+
-        ' — '+(p.subject||'')+' — '+(p.author||''));
+        ' - '+(p.subject||'')+' - '+(p.author||''));
       var age=humanAge(p.date, t.head_date);
       if(age) L.push('Introduced ~'+age+' before this fix.');
       L.push('');
@@ -240,7 +248,7 @@
       L.push('## Suspect set');
       (D.bugfix.suspects||[]).forEach(function(s,i){
         L.push((i+1)+'. `'+s.short+'`'+(s.pr_number?(' ('+PRP+s.pr_number+')'):'')+
-          ' — '+(s.subject||'')+' ('+s.lines+' lines, weight '+s.weight+')');
+          ' - '+(s.subject||'')+' ('+s.lines+' lines, weight '+s.weight+')');
       });
     }
     return L.join('\n');
@@ -262,7 +270,7 @@
 
   // ---- header ----
   var who = t.pr_number ? (PRT+' '+PRP+t.pr_number) : ('branch '+(t.head_ref||'?'));
-  var titleTxt = t.title ? (' — '+t.title) : '';
+  var titleTxt = t.title ? (' - '+t.title) : '';
   var hd = el('<header class="hd"></header>');
   hd.innerHTML =
     '<div>'+
@@ -287,10 +295,10 @@
     var age=humanAge(p0.date, t.head_date);
     var b = el('<div class="banner"></div>');
     b.innerHTML = '<span class="lead">⚠ prime suspect</span>'+
-      linkHash(p0.short, p0.hash)+linkPR(p0.pr_number)+' — '+esc(p0.subject||'')+
+      linkHash(p0.short, p0.hash)+linkPR(p0.pr_number)+' - '+esc(p0.subject||'')+
       ' <span class="muted">('+esc(p0.author||'')+')</span>'+
       (age ? '<br><span class="muted">Introduced ~<b style="color:var(--txt)">'+esc(age)+
-             '</b> before this fix'+(p0.date?(' · '+shortDate(p0.date)+' → '+shortDate(t.head_date)):'')+'.</span>' : '');
+             '</b> before this fix'+(p0.date?(' · '+shortDate(p0.date)+' -> '+shortDate(t.head_date)):'')+'.</span>' : '');
     app.appendChild(b);
   } else if(D.feature){
     var f0=D.feature, b2=el('<div class="banner feature"></div>');
@@ -324,13 +332,15 @@
     (b.notes||[]).forEach(function(n){ ss.appendChild(el('<div class="note">'+esc(n)+'</div>')); });
     var list = el('<div class="suspects"></div>');
     if(!(b.suspects||[]).length){ list.appendChild(el('<div class="empty">No suspects found.</div>')); }
+    var confirmed = b.bisect && b.bisect.agrees_with_suspect;
     (b.suspects||[]).forEach(function(s,i){
       var pct = Math.max(4, Math.round((s.weight||0)*100));
       var card = el('<div class="card suspect-card '+(i===0?'prime':'')+'"></div>');
+      var badge = (i===0 && confirmed) ? '<span class="confirm-badge">✓ bisect</span>' : '';
       card.innerHTML =
         '<div class="rank">'+(i+1)+'</div>'+
         '<div class="sc-body">'+
-          '<div>'+linkHash(s.short, s.hash)+' '+esc(s.subject||'')+linkPR(s.pr_number)+'</div>'+
+          '<div>'+linkHash(s.short, s.hash)+' '+esc(s.subject||'')+linkPR(s.pr_number)+badge+'</div>'+
           '<div class="wt">'+esc(s.author||'')+' · '+shortDate(s.date)+' · '+
             esc(s.lines)+' line(s) · weight '+esc(s.weight)+'</div>'+
           '<div class="bar"><div class="bar-fill" style="width:'+pct+'%"></div></div>'+
@@ -340,7 +350,35 @@
     ss.appendChild(list);
     app.appendChild(ss);
 
-    // test gap — why the regression slipped through
+    // git bisect confirmation
+    if(b.bisect){
+      var bz=b.bisect, bsec=el('<section></section>');
+      bsec.innerHTML='<h2>git bisect</h2>';
+      if(bz.error){
+        bsec.appendChild(el('<div class="note">bisect: '+esc(bz.error)+'</div>'));
+      } else if(bz.first_bad){
+        var fb=bz.first_bad;
+        if(bz.agrees_with_suspect){
+          var ok=el('<div class="card bisect-ok"></div>');
+          ok.innerHTML='<div class="lead">✓ confirmed by git bisect</div>'+
+            '<div class="muted" style="margin-top:5px">The first commit where the test fails - '+
+            linkHash(fb.short, fb.hash)+linkPR(fb.pr_number)+' '+esc(fb.subject||'')+
+            ' - matches the blamed suspect. When it broke is proven, not just inferred.</div>';
+          bsec.appendChild(ok);
+        } else {
+          var df=el('<div class="card bisect-diff"></div>');
+          df.innerHTML='<div class="lead">bisect found a different first-failing commit</div>'+
+            '<div class="muted" style="margin-top:5px">First test failure: '+linkHash(fb.short, fb.hash)+
+            linkPR(fb.pr_number)+' '+esc(fb.subject||'')+'. The blamed suspect is the last commit to '+
+            'touch the fixed lines - the two can differ (e.g. a later refactor moved the line). '+
+            'bisect is authoritative for "first failing".</div>';
+          bsec.appendChild(df);
+        }
+      }
+      app.appendChild(bsec);
+    }
+
+    // test gap - why the regression slipped through
     if(b.test_gap){
       var tg=b.test_gap, tgsec=el('<section></section>');
       if((tg.untested||[]).length){
@@ -348,7 +386,7 @@
         var box=el('<div class="card gap"></div>');
         box.innerHTML='<div class="lead">⚠ '+tg.untested.length+
           ' changed file(s) have no covering tests</div>'+
-          '<div class="muted" style="margin:6px 0 8px">Often why the regression slipped through — add coverage for:</div>';
+          '<div class="muted" style="margin:6px 0 8px">Often why the regression slipped through - add coverage for:</div>';
         var ul=el('<div class="chips"></div>');
         tg.untested.forEach(function(p){ ul.appendChild(el('<span>'+chipFile(p)+'</span>')); });
         box.appendChild(ul); tgsec.appendChild(box); app.appendChild(tgsec);
@@ -362,7 +400,7 @@
 
     // timeline
     var tlsec = el('<section></section>');
-    tlsec.innerHTML = '<h2>How it broke — line evolution</h2>';
+    tlsec.innerHTML = '<h2>How it broke - line evolution</h2>';
     var tl = b.timeline||{ranges:[]};
     (tl.notes||[]).forEach(function(n){ tlsec.appendChild(el('<div class="note">'+esc(n)+'</div>')); });
 
@@ -393,16 +431,18 @@
     (tl.ranges||[]).forEach(function(r){
       var grp = el('<div class="tl-group" data-file="'+esc(r.file)+'"></div>');
       grp.appendChild(el('<div class="tl-file">'+chipFile(r.file)+
-        ' <span class="rng">· lines '+esc(r.range[0])+'–'+esc(r.range[1])+
+        ' <span class="rng">· lines '+esc(r.range[0])+'-'+esc(r.range[1])+
         (r.truncated?' (truncated)':'')+'</span></div>'));
       var tldiv = el('<div class="timeline"></div>');
+      var bisectBad = (b.bisect && b.bisect.first_bad) ? b.bisect.first_bad.hash : null;
       (r.steps||[]).forEach(function(s){
         var role = s.role||'modified';
         var step = el('<div class="step '+role+'"></div>');
+        var ff = (bisectBad && s.hash===bisectBad) ? '<span class="firstfail">⌖ first failing</span>' : '';
         step.innerHTML =
           '<span class="dot '+role+'"></span>'+
           '<div class="step-head">'+
-            '<span class="badge '+role+'">'+(role==='suspect'?'⚠ broke':role)+'</span>'+
+            '<span class="badge '+role+'">'+(role==='suspect'?'⚠ broke':role)+'</span>'+ff+
             linkHash(s.short, s.hash)+
             '<span class="subj">'+esc(s.subject||'')+linkPR(s.pr_number)+'</span>'+
             '<span class="who">'+esc(s.author||'')+'</span>'+
@@ -439,13 +479,13 @@
       // radial graph for the most-depended-on changed file
       var top=keys[0], imps=(f.dependents||{})[top]||[];
       if(imps.length){
-        fs.appendChild(el('<h2 style="font-size:13px;margin-top:14px">Dependency graph — '+esc(basename(top))+'</h2>'));
+        fs.appendChild(el('<h2 style="font-size:13px;margin-top:14px">Dependency graph - '+esc(basename(top))+'</h2>'));
         fs.appendChild(el(renderGraph(top, (f.high_risk||[]).indexOf(top)>=0, imps)));
       }
       fs.appendChild(el('<h2 style="font-size:13px;margin-top:14px">Most-depended-on changed files</h2>'));
       var dl=el('<div></div>');
       keys.slice(0,15).forEach(function(p){
-        dl.appendChild(el('<div style="margin:3px 0">'+chipFile(p)+' <span class="muted">← '+esc(dc[p])+' importer(s)</span></div>'));
+        dl.appendChild(el('<div style="margin:3px 0">'+chipFile(p)+' <span class="muted"><- '+esc(dc[p])+' importer(s)</span></div>'));
       });
       fs.appendChild(dl);
     }

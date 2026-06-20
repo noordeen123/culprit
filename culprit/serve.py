@@ -1,8 +1,8 @@
 """Interactive local web UI: `rca serve`.
 
-A zero-dependency local app (stdlib http.server) that lets you pick the **base
-branch** from a dropdown and run a fresh analysis on demand — the thing a static
-HTML file can't do. Binds to localhost only; it runs git against a local repo.
+A zero-dependency local app (stdlib http.server) that lets you pick the base
+branch from a dropdown and run a fresh analysis on demand, which a static HTML
+file can't do. Binds to localhost only; it runs git against a local repo.
 
 Routes:
   GET /                       landing form (repo, PR/branch, base picker, options)
@@ -22,12 +22,12 @@ from urllib.parse import parse_qs, urlparse
 from . import _proc, cli, config, htmlreport, reasoning
 
 
-# ── base-branch discovery ────────────────────────────────────────────────────
+# -- base-branch discovery ----------------------------------------------------
 
 def candidate_bases(repo: str) -> List[str]:
     """Ordered, de-duplicated candidate base refs for a repo.
 
-    configured base (.culprit.toml / CULPRIT_BASE) → default branch → all local
+    configured base (.culprit.toml / CULPRIT_BASE) -> default branch -> all local
     and remote branches. This is what populates the base picker.
     """
     out: List[str] = []
@@ -58,7 +58,7 @@ def candidate_bases(repo: str) -> List[str]:
     return out[:60]
 
 
-# ── HTML (form + small error page) ───────────────────────────────────────────
+# -- HTML (form + small error page) -------------------------------------------
 
 _STYLE = """
   body{margin:0;background:#0f1115;color:#e6e9ef;
@@ -151,19 +151,19 @@ def form_page(repo: str) -> str:
 
 
 def _error_page(msg: str) -> str:
-    return ("""<!DOCTYPE html><html><head><meta charset="utf-8"><title>culprit — error</title>
+    return ("""<!DOCTYPE html><html><head><meta charset="utf-8"><title>culprit - error</title>
 <style>{style}</style></head><body><div class="wrap">
   <div class="brand">culprit</div><h1>Analysis failed</h1>
-  <div class="err">{msg}</div><p><a href="/">← Back</a></p>
+  <div class="err">{msg}</div><p><a href="/"><- Back</a></p>
 </div></body></html>""").format(style=_STYLE, msg=html.escape(msg))
 
 
 def _back_bar() -> str:
     return ('<div style="max-width:1000px;margin:0 auto;padding:14px 20px 0">'
-            '<a href="/" style="color:#6ea8fe;text-decoration:none">← New analysis</a></div>')
+            '<a href="/" style="color:#6ea8fe;text-decoration:none"><- New analysis</a></div>')
 
 
-# ── analysis for the report route ────────────────────────────────────────────
+# -- analysis for the report route --------------------------------------------
 
 def run_report(params: Dict[str, List[str]]) -> str:
     def g(k, default=None):
@@ -174,7 +174,7 @@ def run_report(params: Dict[str, List[str]]) -> str:
     pr = g("pr") or None
     pr_int = int(pr) if (pr and str(pr).isdigit()) else None
     head = g("head") or None
-    base = g("base") or None       # "" → None → latest commit
+    base = g("base") or None       # "" -> None -> latest commit
     force = g("force") or None
     mode = g("mode", "harness")
 
@@ -184,14 +184,14 @@ def run_report(params: Dict[str, List[str]]) -> str:
     if mode == "api":
         try:
             narrative = reasoning.get_adapter(mode="api").explain(result)
-        except Exception as exc:  # missing key / SDK — degrade gracefully
+        except Exception as exc:  # missing key / SDK - degrade gracefully
             narrative = "_(API narrative unavailable: {})_".format(exc)
 
     doc = htmlreport.render(result, narrative)
     return doc.replace('<div class="wrap" id="app">', _back_bar() + '<div class="wrap" id="app">', 1)
 
 
-# ── server ───────────────────────────────────────────────────────────────────
+# -- server -------------------------------------------------------------------
 
 def make_handler(default_repo: str):
     class Handler(BaseHTTPRequestHandler):
@@ -233,7 +233,7 @@ def run(repo: str = ".", host: str = "127.0.0.1", port: int = 8722, open_browser
     repo = os.path.abspath(os.path.expanduser(repo))
     httpd = ThreadingHTTPServer((host, port), make_handler(repo))
     url = "http://{}:{}/".format(host, port)
-    print("culprit serve → {}  (repo: {})".format(url, repo))
+    print("culprit serve -> {}  (repo: {})".format(url, repo))
     print("Press Ctrl+C to stop.")
     if open_browser:
         try:

@@ -1,7 +1,7 @@
 name: Publish to PyPI
 
 # Publishes to PyPI via Trusted Publishing (OIDC) when you cut a GitHub Release.
-# No API tokens needed — PyPI verifies this exact repo + workflow + environment.
+# No API tokens needed - PyPI verifies this exact repo + workflow + environment.
 
 on:
   release:

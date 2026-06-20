@@ -36,7 +36,7 @@ def py_repo():
 
 
 def test_python_imports_detected(py_repo):
-    # main.py imports pkg.util with no quotes — the bare-import pattern must catch it
+    # main.py imports pkg.util with no quotes - the bare-import pattern must catch it
     imps = blast_radius._importers(py_repo, "util", "pkg/util.py", blast_radius.DEFAULT_SOURCE_GLOBS)
     assert "pkg/main.py" in imps
     assert "tests/test_util.py" in imps
