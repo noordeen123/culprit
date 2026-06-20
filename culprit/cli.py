@@ -121,14 +121,18 @@ def main(argv: Optional[list] = None) -> int:
 
     # Optional: confirm the suspect with a real git bisect (read-only, in a worktree).
     if args.bisect and result.get("bugfix"):
-        result["bugfix"]["bisect"] = bisect.confirm(
-            result["target"], repo, result["bugfix"].get("suspects", []),
-            args.bisect, good=args.good, bad=args.bad)
-        sys.stderr.write("bisect: {}\n".format(
-            result["bugfix"]["bisect"].get("error")
-            or ("first-bad " + (result["bugfix"]["bisect"]["first_bad"] or {}).get("short", "?")
-                + (" (agrees with suspect)" if result["bugfix"]["bisect"].get("agrees_with_suspect")
-                   else " (differs from suspect)"))))
+        bz = bisect.confirm(result["target"], repo, result["bugfix"].get("suspects", []),
+                            args.bisect, good=args.good, bad=args.bad)
+        result["bugfix"]["bisect"] = bz
+        if bz.get("error"):
+            msg = bz["error"]
+        else:
+            agrees = bz.get("agrees_with_suspect")
+            note = ("agrees with suspect" if agrees is True
+                    else "differs from suspect" if agrees is False
+                    else "no suspect to compare")
+            msg = "first-bad {} ({})".format((bz.get("first_bad") or {}).get("short", "?"), note)
+        sys.stderr.write("bisect: {}\n".format(msg))
 
     if args.json:
         print(json.dumps(result, indent=2, default=str))

@@ -332,7 +332,7 @@
     (b.notes||[]).forEach(function(n){ ss.appendChild(el('<div class="note">'+esc(n)+'</div>')); });
     var list = el('<div class="suspects"></div>');
     if(!(b.suspects||[]).length){ list.appendChild(el('<div class="empty">No suspects found.</div>')); }
-    var confirmed = b.bisect && b.bisect.agrees_with_suspect;
+    var confirmed = b.bisect && b.bisect.agrees_with_suspect===true;
     (b.suspects||[]).forEach(function(s,i){
       var pct = Math.max(4, Math.round((s.weight||0)*100));
       var card = el('<div class="card suspect-card '+(i===0?'prime':'')+'"></div>');
@@ -358,14 +358,14 @@
         bsec.appendChild(el('<div class="note">bisect: '+esc(bz.error)+'</div>'));
       } else if(bz.first_bad){
         var fb=bz.first_bad;
-        if(bz.agrees_with_suspect){
+        if(bz.agrees_with_suspect===true){
           var ok=el('<div class="card bisect-ok"></div>');
           ok.innerHTML='<div class="lead">✓ confirmed by git bisect</div>'+
             '<div class="muted" style="margin-top:5px">The first commit where the test fails - '+
             linkHash(fb.short, fb.hash)+linkPR(fb.pr_number)+' '+esc(fb.subject||'')+
             ' - matches the blamed suspect. When it broke is proven, not just inferred.</div>';
           bsec.appendChild(ok);
-        } else {
+        } else if(bz.agrees_with_suspect===false){
           var df=el('<div class="card bisect-diff"></div>');
           df.innerHTML='<div class="lead">bisect found a different first-failing commit</div>'+
             '<div class="muted" style="margin-top:5px">First test failure: '+linkHash(fb.short, fb.hash)+
@@ -373,6 +373,12 @@
             'touch the fixed lines - the two can differ (e.g. a later refactor moved the line). '+
             'bisect is authoritative for "first failing".</div>';
           bsec.appendChild(df);
+        } else {
+          var nu=el('<div class="card"></div>');
+          nu.innerHTML='<div class="lead">git bisect</div>'+
+            '<div class="muted" style="margin-top:5px">First test failure: '+linkHash(fb.short, fb.hash)+
+            linkPR(fb.pr_number)+' '+esc(fb.subject||'')+' (no heuristic suspect to compare against).</div>';
+          bsec.appendChild(nu);
         }
       }
       app.appendChild(bsec);

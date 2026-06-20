@@ -1,5 +1,7 @@
 import os
+import shlex
 import subprocess
+import sys
 import tempfile
 
 import pytest
@@ -37,8 +39,10 @@ def bisectable_repo():
     return d
 
 
-# Command that fails (non-zero) when the bug is present.
-_TEST_CMD = 'python3 -c "import calc,sys; sys.exit(0 if calc.area(2,3)==6 else 1)"'
+# Command that fails (non-zero) when the bug is present. Use the running
+# interpreter (not a hardcoded `python3`, which may not be on PATH).
+_TEST_CMD = '{} -c "import calc, sys; sys.exit(0 if calc.area(2, 3) == 6 else 1)"'.format(
+    shlex.quote(sys.executable))
 
 
 def test_bisect_finds_the_bug_commit_and_agrees(bisectable_repo):
@@ -69,6 +73,16 @@ def test_bisect_is_read_only(bisectable_repo):
     assert before_head == after_head          # HEAD not moved
     # only the main worktree remains (the temp bisect worktree was torn down)
     assert len([l for l in worktrees.splitlines() if l.strip()]) == 1
+
+
+def test_bisect_without_suspect_is_not_comparable(bisectable_repo):
+    # bisect succeeds but there is no heuristic suspect to compare against:
+    # agrees_with_suspect must stay None (not collapse to False/"differs").
+    ctx = pr_context.from_local(bisectable_repo, base="main", head="fix/area")
+    res = bisect.confirm(ctx, bisectable_repo, [], _TEST_CMD, good="main~2")
+    assert res["error"] is None
+    assert res["first_bad"] is not None
+    assert res["agrees_with_suspect"] is None
 
 
 def test_bisect_needs_good(bisectable_repo):
