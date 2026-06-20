@@ -13,6 +13,11 @@ authors = [{ name = "Noordeen" }]
 keywords = ["git", "rca", "root-cause", "pull-request", "regression", "blame"]
 dependencies = []
 
+[project.urls]
+Homepage = "https://github.com/noordeen123/culprit"
+Repository = "https://github.com/noordeen123/culprit"
+Issues = "https://github.com/noordeen123/culprit/issues"
+
 [project.optional-dependencies]
 # Only needed for the standalone (non-Claude-Code) reasoning layer.
 api = ["anthropic>=0.40"]
