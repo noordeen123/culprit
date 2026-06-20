@@ -6,4 +6,4 @@ The only LLM step (the "why it broke" narrative) is isolated behind
 (harness reasons) and the standalone CLI (Claude API reasons).
 """
 
-__version__ = "0.1.0"
+__version__ = "0.1.2"

@@ -6,6 +6,19 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-06-20
+
+### Added
+
+- Optional `git bisect` confirmation: `--bisect "<cmd>"` (with `--good`/`--bad`)
+  runs a real bisect in a throwaway git worktree (read-only) and stamps the
+  report when the first failing commit matches the blamed suspect.
+
+### Fixed
+
+- Treat a non-comparable bisect result (`agrees_with_suspect=None`) as "not
+  comparable" instead of "differs", in both the CLI message and the HTML report.
+
 ## [0.1.1] - 2026-06-20
 
 ### Changed
@@ -43,6 +56,7 @@ Initial release.
 - Configurable base branch and host via `.culprit.toml` / `CULPRIT_BASE` /
   `CULPRIT_HOST`.
 
-[Unreleased]: https://github.com/noordeen123/culprit/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/noordeen123/culprit/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/noordeen123/culprit/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/noordeen123/culprit/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/noordeen123/culprit/releases/tag/v0.1.0
