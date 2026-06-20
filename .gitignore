@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.eggs/
+
+# Test / cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# culprit run output
+output/
+
+# OS / editor
+.DS_Store
+*.swp
+.venv/
+venv/

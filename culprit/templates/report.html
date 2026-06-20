@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>culprit — RCA report</title>
+<style>
+  :root {
+    --bg:#0f1115; --panel:#171a21; --panel2:#1d212b; --line:#2a2f3a;
+    --txt:#e6e9ef; --muted:#9aa3b2; --accent:#6ea8fe;
+    --origin:#8b95a7; --modified:#6ea8fe; --suspect:#f06a6a; --fix:#4cc38a;
+    --add:#173c2c; --addtx:#7ee2b8; --del:#3c1d20; --deltx:#f3a3a3;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt);
+    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  a { color:var(--accent); text-decoration:none; }
+  a:hover { text-decoration:underline; }
+  .wrap { max-width:1000px; margin:0 auto; padding:28px 20px 80px; }
+  header.hd { border-bottom:1px solid var(--line); padding-bottom:18px; margin-bottom:22px;
+    display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
+  .brand { font-size:12px; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); }
+  h1 { font-size:20px; margin:6px 0 10px; font-weight:650; }
+  .pill { display:inline-block; padding:3px 10px; border-radius:999px; font-size:12px;
+    font-weight:650; text-transform:uppercase; letter-spacing:.04em; }
+  .pill.bugfix { background:#3a1f22; color:#f3a3a3; }
+  .pill.feature { background:#1f2f3a; color:#7ec8f3; }
+  .pill.unknown { background:#2a2f3a; color:var(--muted); }
+  .meta { display:flex; flex-wrap:wrap; gap:8px 18px; color:var(--muted); font-size:13px; margin-top:8px; }
+  .meta b { color:var(--txt); font-weight:600; }
+  .btn { background:var(--panel2); border:1px solid var(--line); color:var(--txt);
+    border-radius:7px; padding:6px 11px; font-size:12.5px; cursor:pointer; white-space:nowrap; }
+  .btn:hover { border-color:var(--accent); }
+  .banner { background:linear-gradient(90deg,#241419,#171a21); border:1px solid var(--suspect);
+    border-radius:10px; padding:12px 16px; margin:0 0 22px; font-size:14px; }
+  .banner .lead { color:var(--suspect); font-weight:700; text-transform:uppercase; font-size:11px;
+    letter-spacing:.08em; margin-right:8px; }
+  .banner.feature { border-color:var(--modified); background:linear-gradient(90deg,#13212c,#171a21); }
+  .banner.feature .lead { color:var(--modified); }
+  section { margin:26px 0; }
+  h2 { font-size:15px; margin:0 0 12px; font-weight:650; color:var(--txt); }
+  .muted { color:var(--muted); }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chip { background:var(--panel2); border:1px solid var(--line); border-radius:6px;
+    padding:3px 8px; font-size:12px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; display:inline-block; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+  .suspects { display:grid; gap:10px; }
+  .suspect-card { display:flex; gap:12px; align-items:flex-start; }
+  .rank { width:22px; height:22px; border-radius:50%; background:var(--panel2);
+    display:flex; align-items:center; justify-content:center; font-size:12px; color:var(--muted); flex:0 0 auto; }
+  .suspect-card.prime { border-color:var(--suspect); }
+  .suspect-card.prime .rank { background:#3a1f22; color:#f3a3a3; }
+  .sc-body { flex:1; min-width:0; }
+  .hash { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--accent); }
+  .wt { color:var(--muted); font-size:12px; margin-top:2px; }
+  .bar { height:5px; background:var(--panel2); border-radius:3px; margin-top:7px; overflow:hidden; }
+  .bar-fill { height:100%; background:var(--suspect); border-radius:3px; }
+  .suspect-card:not(.prime) .bar-fill { background:var(--modified); }
+  /* timeline */
+  .toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
+  .toolbar select { background:var(--panel2); color:var(--txt); border:1px solid var(--line);
+    border-radius:7px; padding:6px 9px; font-size:12.5px; max-width:340px; }
+  .tl-file { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:13px;
+    color:var(--txt); margin:18px 0 10px; }
+  .tl-file .rng { color:var(--muted); }
+  .timeline { position:relative; margin-left:8px; padding-left:26px; border-left:2px solid var(--line); }
+  .step { position:relative; margin:0 0 14px; }
+  .dot { position:absolute; left:-35px; top:2px; width:16px; height:16px; border-radius:50%;
+    border:3px solid var(--bg); }
+  .dot.origin { background:var(--origin); }
+  .dot.modified { background:var(--modified); }
+  .dot.suspect { background:var(--suspect); }
+  .dot.fix { background:var(--fix); }
+  .step-head { cursor:pointer; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:9px 12px; }
+  .step.suspect .step-head { border-color:var(--suspect); }
+  .step.fix .step-head { border-color:var(--fix); }
+  .badge { font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.05em;
+    padding:2px 7px; border-radius:5px; }
+  .badge.origin { background:#262b35; color:var(--origin); }
+  .badge.modified { background:#1f2f3a; color:var(--modified); }
+  .badge.suspect { background:#3a1f22; color:var(--suspect); }
+  .badge.fix { background:#163328; color:var(--fix); }
+  .subj { flex:1; min-width:0; }
+  .when { color:var(--muted); font-size:12px; }
+  .who { color:var(--muted); font-size:12px; }
+  .caret { color:var(--muted); transition:transform .15s; }
+  .step.open .caret { transform:rotate(90deg); }
+  .diff { display:none; margin-top:6px; background:#0c0e12; border:1px solid var(--line);
+    border-radius:8px; overflow:auto; }
+  .step.open .diff { display:block; }
+  pre.code { margin:0; padding:10px 12px; font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre; }
+  .dl-add { background:var(--add); color:var(--addtx); display:block; }
+  .dl-del { background:var(--del); color:var(--deltx); display:block; }
+  .dl-hunk { color:var(--accent); display:block; }
+  .dl-ctx { color:var(--muted); display:block; }
+  .s { color:#e6c07b; }                 /* string literal */
+  .gap { border-color:var(--suspect); }
+  .gap .lead { color:var(--suspect); font-weight:650; }
+  .covered { border-color:var(--fix); }
+  .covered .lead { color:var(--fix); font-weight:650; }
+  .graph { width:100%; background:#0c0e12; border:1px solid var(--line); border-radius:10px; }
+  .graph text { font:11px ui-monospace,Menlo,monospace; fill:var(--muted); }
+  .graph .gc-center { fill:#24304a; stroke:var(--accent); }
+  .graph .gc-center.risk { fill:#3a1f22; stroke:var(--suspect); }
+  .graph .gc-node { fill:#1d212b; stroke:var(--line); }
+  .graph .gc-edge { stroke:#2a2f3a; }
+  .graph .gc-label { fill:var(--txt); }
+  .note { color:var(--muted); font-size:12.5px; font-style:italic; margin:4px 0; }
+  .narrative { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:4px 18px; }
+  .narrative h1,.narrative h2,.narrative h3 { font-size:15px; margin:14px 0 8px; }
+  .narrative code { background:var(--panel2); padding:1px 5px; border-radius:4px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px; }
+  .narrative pre { background:#0c0e12; border:1px solid var(--line); padding:10px 12px; border-radius:8px; overflow:auto; }
+  .empty { color:var(--muted); font-style:italic; }
+  footer { margin-top:50px; color:var(--muted); font-size:12px; border-top:1px solid var(--line); padding-top:14px; }
+  footer code { background:var(--panel2); padding:1px 6px; border-radius:4px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<script id="culprit-data" type="application/json">__CULPRIT_DATA__</script>
+<script id="culprit-narrative" type="text/plain">__NARRATIVE__</script>
+<script>
+(function () {
+  var D = JSON.parse(document.getElementById('culprit-data').textContent);
+  var NARR = document.getElementById('culprit-narrative').textContent;
+  var t = D.target||{}, c = D.classification||{};
+  var L = t.links || {};                 // host-aware deep-link templates
+  var BLOBREF = t.head_sha || t.head_ref || 'HEAD';
+  var PRP = L.pr_prefix || '#';          // '#' (GitHub/Bitbucket/Gitea) or '!' (GitLab MR)
+  var PRT = L.pr_term || 'PR';           // 'PR' or 'MR'
+
+  function esc(s){ return String(s==null?'':s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function el(html){ var d=document.createElement('div'); d.innerHTML=html.trim(); return d.firstChild; }
+  function shortDate(iso){ if(!iso) return ''; return String(iso).slice(0,10); }
+
+  // ---- deep links (host-aware: GitHub / GitLab / Bitbucket / Gitea) ----
+  function ghCommit(sha){ return L.commit && sha ? L.commit.replace('{sha}', sha) : null; }
+  function ghPR(n){ return L.pr && n ? L.pr.replace('{pr}', n) : null; }
+  function ghFile(p){ return L.file && p ? L.file.replace('{ref}', BLOBREF).replace('{path}', p) : null; }
+  function linkHash(short, full){ var u=ghCommit(full||short);
+    return u ? '<a class="hash" target="_blank" rel="noopener" href="'+u+'">'+esc(short)+'</a>'
+             : '<span class="hash">'+esc(short)+'</span>'; }
+  function linkPR(n){ if(!n) return ''; var u=ghPR(n);
+    return u ? ' <a class="muted" target="_blank" rel="noopener" href="'+u+'">'+PRP+esc(n)+'</a>'
+             : ' <span class="muted">'+PRP+esc(n)+'</span>'; }
+  function chipFile(p){ var u=ghFile(p);
+    return u ? '<a class="chip" target="_blank" rel="noopener" href="'+u+'">'+esc(p)+'</a>'
+             : '<span class="chip">'+esc(p)+'</span>'; }
+
+  function humanAge(fromISO, toISO){
+    if(!fromISO) return null;
+    var a=Date.parse(fromISO), b=toISO?Date.parse(toISO):Date.now();
+    if(isNaN(a)||isNaN(b)) return null;
+    var d=Math.abs(Math.round((b-a)/86400000));
+    if(d<1) return 'less than a day';
+    if(d<14) return d+' day'+(d>1?'s':'');
+    if(d<60) return Math.round(d/7)+' weeks';
+    if(d<365) return Math.round(d/30)+' months';
+    var y=d/365; return (y>=2?Math.round(y):y.toFixed(1))+' years';
+  }
+
+  // light highlight: wrap string literals (input is already HTML-escaped).
+  function hl(s){ return s.replace(
+    /("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)/g,
+    '<span class="s">$1</span>'); }
+
+  function renderDiff(text){
+    if(!text) return '<pre class="code"><span class="dl-ctx">(no diff)</span></pre>';
+    var rows = String(text).split('\n').map(function(l){
+      if(l.indexOf('@@')===0) return '<span class="dl-hunk">'+esc(l)+'</span>';
+      if(l[0]==='+'&&l.indexOf('+++')!==0) return '<span class="dl-add">'+hl(esc(l))+'</span>';
+      if(l[0]==='-'&&l.indexOf('---')!==0) return '<span class="dl-del">'+hl(esc(l))+'</span>';
+      return '<span class="dl-ctx">'+hl(esc(l))+'</span>';
+    }).join('');
+    return '<pre class="code">'+rows+'</pre>';
+  }
+
+  function basename(p){ var i=String(p).lastIndexOf('/'); return i>=0?p.slice(i+1):p; }
+
+  // radial blast-radius graph: a changed file (center) and its importers (ring).
+  function renderGraph(center, isRisk, importers){
+    var total=importers.length, shown=importers.slice(0,14);
+    var W=900, H=400, cx=450, cy=190, Rx=370, Ry=150, n=shown.length;
+    var nodes=shown.map(function(p,i){
+      var ang=(2*Math.PI*i/Math.max(1,n))-Math.PI/2;
+      return {x:cx+Rx*Math.cos(ang), y:cy+Ry*Math.sin(ang), label:basename(p)};
+    });
+    var edges=nodes.map(function(d){
+      return '<line class="gc-edge" x1="'+cx+'" y1="'+cy+'" x2="'+d.x.toFixed(0)+'" y2="'+d.y.toFixed(0)+'"/>';
+    }).join('');
+    var ring=nodes.map(function(d){
+      var ty=d.y<cy?d.y-10:d.y+16;
+      return '<circle class="gc-node" cx="'+d.x.toFixed(0)+'" cy="'+d.y.toFixed(0)+'" r="6"/>'+
+        '<text x="'+d.x.toFixed(0)+'" y="'+ty.toFixed(0)+'" text-anchor="middle">'+esc(d.label)+'</text>';
+    }).join('');
+    return '<svg class="graph" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet">'+
+      edges+ring+
+      '<circle class="gc-center'+(isRisk?' risk':'')+'" cx="'+cx+'" cy="'+cy+'" r="12"/>'+
+      '<text class="gc-label" x="'+cx+'" y="'+(cy+30)+'" text-anchor="middle">'+esc(basename(center))+
+        ' · '+total+' importer'+(total!==1?'s':'')+(total>shown.length?(' (showing '+shown.length+')'):'')+'</text>'+
+      '</svg>';
+  }
+
+  // ---- tiny markdown ----
+  function md(src){
+    if(!src) return '';
+    var lines = src.split('\n'), out=[], inList=false;
+    function inline(s){ return esc(s)
+      .replace(/`([^`]+)`/g,'<code>$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>'); }
+    for(var i=0;i<lines.length;i++){
+      var l=lines[i], h=l.match(/^(#{1,4})\s+(.*)$/), li=l.match(/^[-*]\s+(.*)$/);
+      if(h){ if(inList){out.push('</ul>');inList=false;} out.push('<h'+h[1].length+'>'+inline(h[2])+'</h'+h[1].length+'>'); }
+      else if(li){ if(!inList){out.push('<ul>');inList=true;} out.push('<li>'+inline(li[1])+'</li>'); }
+      else if(l.trim()===''){ if(inList){out.push('</ul>');inList=false;} }
+      else { if(inList){out.push('</ul>');inList=false;} out.push('<p>'+inline(l)+'</p>'); }
+    }
+    if(inList) out.push('</ul>');
+    return out.join('\n');
+  }
+
+  function buildMarkdown(){
+    var who = t.pr_number ? (PRT+' '+PRP+t.pr_number) : ('branch '+(t.head_ref||''));
+    var L = ['# RCA: '+who+(t.title?(' — '+t.title):''), ''];
+    L.push('**'+(c.verdict||'unknown')+'** · confidence '+c.confidence+' · base `'+(t.base_ref||'')+'`', '');
+    if(D.bugfix && (D.bugfix.suspects||[]).length){
+      var p=D.bugfix.suspects[0];
+      L.push('**Prime suspect:** `'+p.short+'`'+(p.pr_number?(' ('+PRP+p.pr_number+')'):'')+
+        ' — '+(p.subject||'')+' — '+(p.author||''));
+      var age=humanAge(p.date, t.head_date);
+      if(age) L.push('Introduced ~'+age+' before this fix.');
+      L.push('');
+    }
+    if(NARR && NARR.trim()){ L.push(NARR.trim(), ''); }
+    if(D.bugfix){
+      L.push('## Suspect set');
+      (D.bugfix.suspects||[]).forEach(function(s,i){
+        L.push((i+1)+'. `'+s.short+'`'+(s.pr_number?(' ('+PRP+s.pr_number+')'):'')+
+          ' — '+(s.subject||'')+' ('+s.lines+' lines, weight '+s.weight+')');
+      });
+    }
+    return L.join('\n');
+  }
+
+  function copyMarkdown(btn){
+    var text = buildMarkdown();
+    function ok(){ var o=btn.textContent; btn.textContent='✓ Copied'; setTimeout(function(){btn.textContent=o;},1400); }
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(ok, function(){ fallback(); });
+    } else { fallback(); }
+    function fallback(){
+      var ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta);
+      ta.select(); try{document.execCommand('copy');ok();}catch(e){} document.body.removeChild(ta);
+    }
+  }
+
+  var app = document.getElementById('app');
+
+  // ---- header ----
+  var who = t.pr_number ? (PRT+' '+PRP+t.pr_number) : ('branch '+(t.head_ref||'?'));
+  var titleTxt = t.title ? (' — '+t.title) : '';
+  var hd = el('<header class="hd"></header>');
+  hd.innerHTML =
+    '<div>'+
+      '<div class="brand">culprit · root-cause analysis</div>'+
+      '<h1>'+esc(who)+esc(titleTxt)+'</h1>'+
+      '<span class="pill '+esc(c.verdict||'unknown')+'">'+esc(c.verdict||'unknown')+
+        '</span> <span class="muted">confidence '+esc(c.confidence)+'</span>'+
+      '<div class="meta">'+
+        '<span>base <b>'+esc(t.base_ref||'?')+'</b></span>'+
+        '<span>changed files <b>'+esc((t.changed_files||[]).length)+'</b></span>'+
+        '<span>commits <b>'+esc(t.commit_count||0)+'</b></span>'+
+      '</div>'+
+    '</div>';
+  var copyBtn = el('<button class="btn">⧉ Copy as markdown</button>');
+  copyBtn.addEventListener('click', function(){ copyMarkdown(copyBtn); });
+  hd.appendChild(copyBtn);
+  app.appendChild(hd);
+
+  // ---- TL;DR banner ----
+  if(D.bugfix && (D.bugfix.suspects||[]).length){
+    var p0=D.bugfix.suspects[0];
+    var age=humanAge(p0.date, t.head_date);
+    var b = el('<div class="banner"></div>');
+    b.innerHTML = '<span class="lead">⚠ prime suspect</span>'+
+      linkHash(p0.short, p0.hash)+linkPR(p0.pr_number)+' — '+esc(p0.subject||'')+
+      ' <span class="muted">('+esc(p0.author||'')+')</span>'+
+      (age ? '<br><span class="muted">Introduced ~<b style="color:var(--txt)">'+esc(age)+
+             '</b> before this fix'+(p0.date?(' · '+shortDate(p0.date)+' → '+shortDate(t.head_date)):'')+'.</span>' : '');
+    app.appendChild(b);
+  } else if(D.feature){
+    var f0=D.feature, b2=el('<div class="banner feature"></div>');
+    b2.innerHTML = '<span class="lead">blast radius</span>'+
+      esc(f0.total_dependents||0)+' dependent(s) across '+esc((t.changed_files||[]).length)+
+      ' changed file(s)'+((f0.high_risk||[]).length?(' · <b style="color:var(--txt)">'+esc(f0.high_risk.length)+
+      '</b> high-risk module(s)'):'')+'.';
+    app.appendChild(b2);
+  }
+
+  // evidence
+  if((c.evidence||[]).length){
+    var ev = el('<section></section>');
+    ev.innerHTML = '<h2>Why this classification</h2><ul>'+
+      c.evidence.map(function(e){return '<li>'+esc(e)+'</li>';}).join('')+'</ul>';
+    app.appendChild(ev);
+  }
+
+  // narrative
+  if(NARR && NARR.trim()){
+    var nv = el('<section></section>');
+    nv.innerHTML = '<h2>Analysis</h2><div class="narrative">'+md(NARR)+'</div>';
+    app.appendChild(nv);
+  }
+
+  // ---- bugfix ----
+  if(D.bugfix){
+    var b = D.bugfix;
+    var ss = el('<section></section>');
+    ss.innerHTML = '<h2>Suspect set</h2>';
+    (b.notes||[]).forEach(function(n){ ss.appendChild(el('<div class="note">'+esc(n)+'</div>')); });
+    var list = el('<div class="suspects"></div>');
+    if(!(b.suspects||[]).length){ list.appendChild(el('<div class="empty">No suspects found.</div>')); }
+    (b.suspects||[]).forEach(function(s,i){
+      var pct = Math.max(4, Math.round((s.weight||0)*100));
+      var card = el('<div class="card suspect-card '+(i===0?'prime':'')+'"></div>');
+      card.innerHTML =
+        '<div class="rank">'+(i+1)+'</div>'+
+        '<div class="sc-body">'+
+          '<div>'+linkHash(s.short, s.hash)+' '+esc(s.subject||'')+linkPR(s.pr_number)+'</div>'+
+          '<div class="wt">'+esc(s.author||'')+' · '+shortDate(s.date)+' · '+
+            esc(s.lines)+' line(s) · weight '+esc(s.weight)+'</div>'+
+          '<div class="bar"><div class="bar-fill" style="width:'+pct+'%"></div></div>'+
+        '</div>';
+      list.appendChild(card);
+    });
+    ss.appendChild(list);
+    app.appendChild(ss);
+
+    // test gap — why the regression slipped through
+    if(b.test_gap){
+      var tg=b.test_gap, tgsec=el('<section></section>');
+      if((tg.untested||[]).length){
+        tgsec.innerHTML='<h2>Test gap</h2>';
+        var box=el('<div class="card gap"></div>');
+        box.innerHTML='<div class="lead">⚠ '+tg.untested.length+
+          ' changed file(s) have no covering tests</div>'+
+          '<div class="muted" style="margin:6px 0 8px">Often why the regression slipped through — add coverage for:</div>';
+        var ul=el('<div class="chips"></div>');
+        tg.untested.forEach(function(p){ ul.appendChild(el('<span>'+chipFile(p)+'</span>')); });
+        box.appendChild(ul); tgsec.appendChild(box); app.appendChild(tgsec);
+      } else if((tg.covering_tests||[]).length){
+        tgsec.innerHTML='<h2>Test coverage</h2><div class="card covered">'+
+          '<span class="lead">✓ touched files are covered by '+tg.covering_tests.length+
+          ' test file(s)</span></div>';
+        app.appendChild(tgsec);
+      }
+    }
+
+    // timeline
+    var tlsec = el('<section></section>');
+    tlsec.innerHTML = '<h2>How it broke — line evolution</h2>';
+    var tl = b.timeline||{ranges:[]};
+    (tl.notes||[]).forEach(function(n){ tlsec.appendChild(el('<div class="note">'+esc(n)+'</div>')); });
+
+    if((tl.ranges||[]).length){
+      // toolbar
+      var bar = el('<div class="toolbar"></div>');
+      var bExp = el('<button class="btn">Expand all</button>');
+      var bCol = el('<button class="btn">Collapse all</button>');
+      var sel = el('<select></select>');
+      sel.appendChild(el('<option value="__all__">All files ('+tl.ranges.length+')</option>'));
+      var seen={};
+      tl.ranges.forEach(function(r){ if(!seen[r.file]){ seen[r.file]=1;
+        var o=document.createElement('option'); o.value=r.file; o.textContent=r.file; sel.appendChild(o); } });
+      bExp.addEventListener('click', function(){ tlsec.querySelectorAll('.step').forEach(function(s){s.classList.add('open');}); });
+      bCol.addEventListener('click', function(){ tlsec.querySelectorAll('.step').forEach(function(s){s.classList.remove('open');}); });
+      sel.addEventListener('change', function(){
+        var v=sel.value;
+        tlsec.querySelectorAll('.tl-group').forEach(function(g){
+          g.style.display = (v==='__all__'||g.getAttribute('data-file')===v)?'':'none';
+        });
+      });
+      bar.appendChild(bExp); bar.appendChild(bCol); bar.appendChild(sel);
+      tlsec.appendChild(bar);
+    } else {
+      tlsec.appendChild(el('<div class="empty">No line history available.</div>'));
+    }
+
+    (tl.ranges||[]).forEach(function(r){
+      var grp = el('<div class="tl-group" data-file="'+esc(r.file)+'"></div>');
+      grp.appendChild(el('<div class="tl-file">'+chipFile(r.file)+
+        ' <span class="rng">· lines '+esc(r.range[0])+'–'+esc(r.range[1])+
+        (r.truncated?' (truncated)':'')+'</span></div>'));
+      var tldiv = el('<div class="timeline"></div>');
+      (r.steps||[]).forEach(function(s){
+        var role = s.role||'modified';
+        var step = el('<div class="step '+role+'"></div>');
+        step.innerHTML =
+          '<span class="dot '+role+'"></span>'+
+          '<div class="step-head">'+
+            '<span class="badge '+role+'">'+(role==='suspect'?'⚠ broke':role)+'</span>'+
+            linkHash(s.short, s.hash)+
+            '<span class="subj">'+esc(s.subject||'')+linkPR(s.pr_number)+'</span>'+
+            '<span class="who">'+esc(s.author||'')+'</span>'+
+            '<span class="when">'+shortDate(s.date)+'</span>'+
+            '<span class="caret">▶</span>'+
+          '</div>'+
+          '<div class="diff">'+renderDiff(s.diff)+'</div>';
+        step.querySelector('.step-head').addEventListener('click', function(ev){
+          if(ev.target.tagName==='A') return;  // let hash/PR links work
+          step.classList.toggle('open');
+        });
+        if(role==='suspect'||role==='fix') step.classList.add('open');
+        tldiv.appendChild(step);
+      });
+      grp.appendChild(tldiv);
+      tlsec.appendChild(grp);
+    });
+    app.appendChild(tlsec);
+  }
+
+  // ---- feature blast radius ----
+  if(D.feature){
+    var f = D.feature, fs = el('<section></section>');
+    fs.innerHTML = '<h2>Blast radius</h2>'+
+      '<div class="muted" style="margin-bottom:10px">total dependents: '+esc(f.total_dependents||0)+'</div>';
+    if((f.high_risk||[]).length){
+      fs.appendChild(el('<h2 style="font-size:13px">High-risk touched modules</h2>'));
+      var hr=el('<div class="chips"></div>');
+      f.high_risk.forEach(function(p){ hr.appendChild(el('<span>'+chipFile(p)+'</span>')); });
+      fs.appendChild(hr);
+    }
+    var dc = f.dependent_counts||{}, keys=Object.keys(dc);
+    if(keys.length){
+      // radial graph for the most-depended-on changed file
+      var top=keys[0], imps=(f.dependents||{})[top]||[];
+      if(imps.length){
+        fs.appendChild(el('<h2 style="font-size:13px;margin-top:14px">Dependency graph — '+esc(basename(top))+'</h2>'));
+        fs.appendChild(el(renderGraph(top, (f.high_risk||[]).indexOf(top)>=0, imps)));
+      }
+      fs.appendChild(el('<h2 style="font-size:13px;margin-top:14px">Most-depended-on changed files</h2>'));
+      var dl=el('<div></div>');
+      keys.slice(0,15).forEach(function(p){
+        dl.appendChild(el('<div style="margin:3px 0">'+chipFile(p)+' <span class="muted">← '+esc(dc[p])+' importer(s)</span></div>'));
+      });
+      fs.appendChild(dl);
+    }
+    if((f.covering_tests||[]).length){
+      fs.appendChild(el('<h2 style="font-size:13px;margin-top:14px">Covering tests</h2>'));
+      var ct=el('<div class="chips"></div>');
+      f.covering_tests.slice(0,30).forEach(function(p){ ct.appendChild(el('<span>'+chipFile(p)+'</span>')); });
+      fs.appendChild(ct);
+    }
+    app.appendChild(fs);
+  }
+
+  // ---- footer: base + regenerate hint ----
+  var foot = el('<footer></footer>');
+  foot.innerHTML = 'Generated by <b>culprit</b> · read-only RCA · base <code>'+esc(t.base_ref||'?')+'</code>'+
+    ' · '+esc((t.changed_files||[]).length)+' file(s).<br>'+
+    'Regenerate against a different base: <code>rca --base &lt;ref&gt; --html report.html</code>'+
+    ' (or set <code>base</code> in <code>.culprit.toml</code>).';
+  app.appendChild(foot);
+})();
+</script>
+</body>
+</html>

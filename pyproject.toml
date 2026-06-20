@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "culprit"
+version = "0.1.0"
+description = "Root-cause analysis for a PR or branch: classify feature vs bugfix, find the introducing commit (suspect set) or the blast radius."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Noordeen" }]
+keywords = ["git", "rca", "root-cause", "pull-request", "regression", "blame"]
+dependencies = []
+
+[project.optional-dependencies]
+# Only needed for the standalone (non-Claude-Code) reasoning layer.
+api = ["anthropic>=0.40"]
+dev = ["pytest>=7"]
+
+[project.scripts]
+rca = "culprit.cli:main"
+culprit = "culprit.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["culprit*"]
+
+[tool.setuptools.package-data]
+culprit = ["templates/*.html"]
