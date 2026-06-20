@@ -49,6 +49,18 @@ The test suite builds throwaway git repos in temp dirs, so you need `git` on PAT
    the core engine without discussion.
 5. Open the PR with a clear description of the change and why.
 
+## Releasing
+
+The version is derived from the git tag by `setuptools-scm` - there is no version
+string to edit anywhere in the code. To cut a release:
+
+1. Update `CHANGELOG.md` (move items from `[Unreleased]` into a new version heading).
+2. Create a GitHub release with tag `vX.Y.Z` targeting `main`.
+
+The publish workflow builds straight from the tag, so the package version always
+matches the tag. (A tag of `v0.2.0` produces `culprit 0.2.0`; commits between tags
+build as `0.2.1.devN+g<hash>` locally.)
+
 ## Reporting bugs
 
 Open an issue with: the command you ran, the repo/host/language, what you expected,

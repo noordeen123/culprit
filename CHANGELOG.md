@@ -6,6 +6,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Version is now derived from the git tag via `setuptools-scm` - no version string
+  is hardcoded in `pyproject.toml` / `culprit/__init__.py` anymore.
+
 ## [0.1.2] - 2026-06-20
 
 ### Added
