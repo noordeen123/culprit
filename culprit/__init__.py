@@ -6,4 +6,9 @@ The only LLM step (the "why it broke" narrative) is isolated behind
 (harness reasons) and the standalone CLI (Claude API reasons).
 """
 
-__version__ = "0.1.2"
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("culprit")
+except PackageNotFoundError:  # running from a source tree that isn't installed
+    __version__ = "0.0.0+unknown"

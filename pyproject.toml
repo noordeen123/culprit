@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=64", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "culprit"
-version = "0.1.2"
+dynamic = ["version"]
 description = "Root-cause analysis for a PR or branch: classify feature vs bugfix, find the introducing commit (suspect set) or the blast radius."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -46,3 +46,7 @@ include = ["culprit*"]
 
 [tool.setuptools.package-data]
 culprit = ["templates/*.html"]
+
+# Version is derived from the git tag (vX.Y.Z) by setuptools-scm, so there is no
+# hardcoded version anywhere. To release: tag the commit and cut the release.
+[tool.setuptools_scm]
