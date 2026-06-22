@@ -29,6 +29,10 @@ _HUNK_HEADING = re.compile(r"^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@\s*(.*)$")
 _SIG = re.compile(
     r"\b(?:def|class|function|func|fn|interface|struct|type|sub)\s+([A-Za-z_][A-Za-z0-9_]{2,})"
     r"|([A-Za-z_][A-Za-z0-9_]{2,})\s*\(")
+# Just the `def name` / `class name` form - used on context lines, where a bare
+# `name(` would be an ordinary call rather than the enclosing definition.
+_DEF = re.compile(
+    r"\b(?:def|class|function|func|fn|interface|struct|type|sub)\s+([A-Za-z_][A-Za-z0-9_]{2,})")
 # A call-ish use: `name(` on a changed line.
 _CALL = re.compile(r"([A-Za-z_][A-Za-z0-9_]{2,})\s*\(")
 _REVERT = re.compile(r"(?i)^\s*revert\b")
@@ -70,13 +74,19 @@ def _symbols_from_diff(diff: str) -> List[str]:
         if not cur_source:
             continue
         m = _HUNK_HEADING.match(line)
-        if m and m.group(1).strip():
+        if m:
             for sm in _SIG.finditer(m.group(1)):
                 name = sm.group(1) or sm.group(2)
                 if name and name not in _KEYWORDS and name not in headings:
                     headings.append(name)
             continue
-        if line[:1] in ("+", "-") and line[:3] not in ("+++", "---"):
+        if line[:1] == " ":
+            # context line: the enclosing definition (the def/class the fix lives in)
+            for dm2 in _DEF.finditer(line):
+                name = dm2.group(1)
+                if name and name not in _KEYWORDS and name not in headings:
+                    headings.append(name)
+        elif line[:1] in ("+", "-") and line[:3] not in ("+++", "---"):
             for cm in _CALL.finditer(line[1:]):
                 name = cm.group(1)
                 if name not in _KEYWORDS and name not in called:

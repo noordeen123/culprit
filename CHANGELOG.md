@@ -6,6 +6,16 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- The bug's life story for a bugfix: the introducing commit's **intent** (its
+  message body + the PR/issue it came from), a **lifecycle** view (which releases
+  shipped the bug, commits/authors spanned, recurring-hotspot detection via
+  `git tag --contains` / `git log`), and a **fix-completeness** check (other
+  untouched references to the changed symbols, whether a test was added, revert
+  detection). The HTML report and narrative are restructured into an
+  Introduced -> Lived -> Broke -> Why -> Fixed -> Prevent story.
+
 ### Changed
 
 - Version is now derived from the git tag via `setuptools-scm` - no version string

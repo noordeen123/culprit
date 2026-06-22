@@ -78,14 +78,29 @@ def test_revert_threshold_not_too_lenient(tmp_path):
     f = os.path.join(d, "f.py")
     with open(f, "w") as fh:
         fh.write("L1\nL2\nL3\n")
-    _git(d, "add", "-A"); _git(d, "commit", "-m", "init")
+    _git(d, "add", "-A")
+    _git(d, "commit", "-m", "init")
     with open(f, "w") as fh:
         fh.write("L2\nL3\n")           # suspect removes L1
-    _git(d, "add", "-A"); _git(d, "commit", "-m", "drop L1")
-    sha = subprocess.run(["git", "-C", d, "rev-parse", "HEAD"],
+    _git(d, "add", "-A")
+    _git(d, "commit", "-m", "drop L1")
+    sha = subprocess.run(["git", "-C", d, "rev-parse", "HEAD"], check=True,
                          capture_output=True, text=True).stdout.strip()
     fix_diff = ("diff --git a/f.py b/f.py\n--- a/f.py\n+++ b/f.py\n"
                 "@@ -1,1 +1,3 @@\n+L1\n+X\n+Y\n")     # 3 added lines, 1 overlaps
     ctx = {"diff": fix_diff, "changed_files": ["f.py"], "title": "fix: stuff", "commits": []}
     res = completeness.assess(ctx, d, [{"hash": sha}])
     assert res["is_revert"] is False
+
+
+def test_symbol_from_enclosing_def_on_a_context_line(multi_call_repo):
+    # The fix changes a line *inside* scale(); the `def scale` is a context line in
+    # the hunk (no @@ heading, no call on the changed line). The enclosing function
+    # name must still be picked up so other call sites are found.
+    diff = ("diff --git a/util.py b/util.py\n--- a/util.py\n+++ b/util.py\n"
+            "@@ -1,2 +1,2 @@\n def scale(v):\n-    return v * 2\n+    return v * 3\n")
+    ctx = {"diff": diff, "changed_files": ["util.py"], "title": "fix: scale", "commits": []}
+    res = completeness.assess(ctx, multi_call_repo, [])
+    assert "scale" in res["symbols"]
+    sites = sum(res["other_call_sites"].values(), [])
+    assert "a.py" in sites and "b.py" in sites
