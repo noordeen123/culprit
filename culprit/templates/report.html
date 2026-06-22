@@ -170,8 +170,15 @@
   function ghIssue(n){ if(!t.repo_url||!n) return null;
     var base=String(t.repo_url).replace(/\/+$/,'');
     return (t.repo_host==='gitlab') ? base+'/-/issues/'+n : base+'/issues/'+n; }
-  function linkIssue(n){ var u=ghIssue(n);
-    return u ? '<a target="_blank" rel="noopener" href="'+u+'">#'+esc(n)+'</a>' : '#'+esc(n); }
+  // Only emit http(s) URLs, normalized + escaped, so a hostile repo_url can't
+  // break out of the href attribute or inject a javascript: link.
+  function safeHttpUrl(u){
+    if(!u) return null;
+    try{ var p=new URL(String(u)); if(p.protocol!=='http:'&&p.protocol!=='https:') return null; return esc(p.href); }
+    catch(_){ return null; }
+  }
+  function linkIssue(n){ var href=safeHttpUrl(ghIssue(n));
+    return href ? '<a target="_blank" rel="noopener" href="'+href+'">#'+esc(n)+'</a>' : '#'+esc(n); }
 
   function humanAge(fromISO, toISO){
     if(!fromISO) return null;

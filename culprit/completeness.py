@@ -147,7 +147,7 @@ def assess(ctx: Dict[str, Any], repo: str, suspects: List[Dict[str, Any]]) -> Di
             fix_added = _diff_lines(diff, "+")
             if fix_added and sus_removed:
                 common = fix_added & sus_removed
-                if len(common) >= max(1, len(fix_added) // 2):
+                if len(common) >= max(1, (len(fix_added) + 1) // 2):
                     is_revert = True
                     notes.append("the fix restores lines the suspect commit removed")
 

@@ -71,8 +71,9 @@ def markdown_skeleton(result: Dict[str, Any]) -> str:
                 lines.append("- Addressed issue(s): {}".format(
                     ", ".join("#{}".format(n) for n in intent["linked_issues"])))
             if intent.get("body"):
-                first = intent["body"].strip().splitlines()[0]
-                lines.append("- Stated intent: {}".format(first[:200]))
+                body_lines = intent["body"].strip().splitlines()
+                if body_lines:
+                    lines.append("- Stated intent: {}".format(body_lines[0][:200]))
             lines.append("_(reasoning: what was the author trying to do here?)_")
         else:
             lines.append("_No suspect found (base may not be fetched locally)._")

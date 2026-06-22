@@ -347,7 +347,7 @@ def pr_meta(repo: str, pr: int) -> Optional[Dict[str, Any]]:
         if token:
             headers["Authorization"] = "Bearer " + token
         m = _api_get("https://api.github.com/repos/{}/pulls/{}".format(path, pr), headers)
-        if m:
+        if m and m.get("number") is not None and m.get("title") and m.get("html_url"):
             return {"number": m.get("number"), "title": m.get("title"),
                     "body": m.get("body"), "url": m.get("html_url")}
     elif kind == "gitlab":
@@ -357,7 +357,7 @@ def pr_meta(repo: str, pr: int) -> Optional[Dict[str, Any]]:
             headers["PRIVATE-TOKEN"] = token
         enc = urllib.parse.quote(path, safe="")
         m = _api_get("https://{}/api/v4/projects/{}/merge_requests/{}".format(host, enc, pr), headers)
-        if m:
+        if m and m.get("iid") is not None and m.get("title") and m.get("web_url"):
             return {"number": m.get("iid"), "title": m.get("title"),
                     "body": m.get("description"), "url": m.get("web_url")}
     return None
