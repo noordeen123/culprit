@@ -49,21 +49,97 @@ def markdown_skeleton(result: Dict[str, Any]) -> str:
 
     if result.get("bugfix") is not None:
         b = result["bugfix"]
-        lines.append("## Suspect set")
+        suspects = b.get("suspects", [])
+        prime = suspects[0] if suspects else None
+        lc = b.get("lifecycle") or {}
+        cp = b.get("completeness") or {}
+
+        # --- Introduced: what the author was trying to do when the bug went in ---
+        lines.append("## Introduced")
+        if prime:
+            intent = prime.get("intent") or {}
+            pr = intent.get("pr") or {}
+            if pr.get("title"):
+                pr_txt = " (PR #{}: {})".format(pr.get("number"), pr.get("title"))
+            elif prime.get("pr_number"):
+                pr_txt = " (PR #{})".format(prime["pr_number"])
+            else:
+                pr_txt = ""
+            lines.append("Prime suspect `{}` - {} - {}{}".format(
+                prime["short"], prime.get("author"), prime.get("subject"), pr_txt))
+            if intent.get("linked_issues"):
+                lines.append("- Addressed issue(s): {}".format(
+                    ", ".join("#{}".format(n) for n in intent["linked_issues"])))
+            if intent.get("body"):
+                first = intent["body"].strip().splitlines()[0]
+                lines.append("- Stated intent: {}".format(first[:200]))
+            lines.append("_(reasoning: what was the author trying to do here?)_")
+        else:
+            lines.append("_No suspect found (base may not be fetched locally)._")
         for note in b.get("notes", []):
             lines.append("> {}".format(note))
-        if not b.get("suspects"):
-            lines.append("_No suspects found (base may not be fetched locally)._")
-        for i, s in enumerate(b.get("suspects", []), 1):
+        lines.append("")
+
+        # --- Lived: how long it survived and how far it spread ---
+        lines.append("## Lived")
+        if lc.get("releases"):
+            lines.append("- Shipped in {} release(s): {}{}".format(
+                len(lc["releases"]), ", ".join(lc["releases"]),
+                " (+more)" if lc.get("releases_truncated") else ""))
+        if lc.get("commits_span"):
+            lines.append("- {} commit(s) passed before the fix.".format(lc["commits_span"]))
+        rec = lc.get("recurrence") or {}
+        if rec.get("is_hotspot"):
+            lines.append("- Hotspot: {} prior fix(es) to `{}`.".format(
+                rec.get("fix_count"), rec.get("file")))
+        for note in lc.get("notes", []):
+            lines.append("> {}".format(note))
+        lines.append("")
+
+        # --- Broke: the ranked suspect set (and bisect, if run) ---
+        lines.append("## Suspect set")
+        for i, s in enumerate(suspects, 1):
             pr = " (PR #{})".format(s["pr_number"]) if s.get("pr_number") else ""
             lines.append("{}. `{}` - {} - {}{}".format(
                 i, s["short"], s.get("author"), s.get("subject"), pr))
             lines.append("   - {} buggy line(s), weight {}, files: {}".format(
                 s["lines"], s.get("weight"), ", ".join(s.get("files", []))))
+        bz = b.get("bisect")
+        if bz and not bz.get("error") and bz.get("first_bad"):
+            agree = bz.get("agrees_with_suspect")
+            verdict = ("confirmed by git bisect" if agree is True
+                       else "bisect found a different first-failing commit" if agree is False
+                       else "first failing commit")
+            lines.append("- git bisect: {} `{}`.".format(verdict, bz["first_bad"].get("short")))
         lines.append("")
+
         lines.append("## Why it broke")
-        lines.append("_(reasoning layer fills: symptom -> root cause -> introducing commit "
-                     "-> why -> fix assessment -> test gap)_")
+        lines.append("_(reasoning layer fills: symptom -> root cause -> the specific change "
+                     "that broke it -> contrast the stated intent above with the actual effect)_")
+        lines.append("")
+
+        # --- Fixed: is the root cause fully addressed? ---
+        lines.append("## Is the fix complete?")
+        if cp.get("untouched_count"):
+            lines.append("- {} other reference(s) to the changed symbol(s) {} were not "
+                         "touched - the fix may be partial.".format(
+                             cp["untouched_count"], ", ".join(cp.get("symbols", []))))
+        lines.append("- Test in this change: {}".format("yes" if cp.get("adds_test") else "no"))
+        if cp.get("is_revert"):
+            lines.append("- This change effectively reverts the introducing commit.")
+        lines.append("_(reasoning: does the fix address the root cause or just one symptom?)_")
+        lines.append("")
+
+        # --- Prevent: the test gap that let it through ---
+        tg = b.get("test_gap") or {}
+        lines.append("## Prevent")
+        if tg.get("untested"):
+            lines.append("Add coverage for: {}".format(", ".join(tg["untested"][:20])))
+        elif tg.get("covering_tests"):
+            lines.append("Touched files are covered by {} test file(s).".format(
+                len(tg["covering_tests"])))
+        else:
+            lines.append("_(reasoning: what test would have caught this?)_")
 
     if result.get("feature") is not None:
         f = result["feature"]

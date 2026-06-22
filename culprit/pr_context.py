@@ -316,6 +316,53 @@ def from_pr_rest(repo: str, pr: int) -> Optional[Dict[str, Any]]:
     return None
 
 
+def pr_meta(repo: str, pr: int) -> Optional[Dict[str, Any]]:
+    """Best-effort ``{number, title, body, url}`` for an *arbitrary* PR/MR number.
+
+    Used to surface the *intent* of the commit that introduced a bug - the PR that
+    brought it in. Tries ``gh`` first, then the GitHub/GitLab REST API, then gives
+    up. Always read-only and safe offline (returns ``None`` on any failure), so
+    intent enrichment degrades to "commit body only".
+    """
+    if pr is None:
+        return None
+    if _proc.have_gh():
+        try:
+            out = _proc.gh(["pr", "view", str(pr), "--json", "number,title,body,url"], repo, check=False)
+            if out.strip():
+                m = json.loads(out)
+                return {"number": m.get("number"), "title": m.get("title"),
+                        "body": m.get("body"), "url": m.get("url")}
+        except (ValueError, _proc.ProcError):
+            pass
+
+    parts = _remote_parts(repo)
+    if parts is None:
+        return None
+    host, path, _ = parts
+    kind = host_kind(repo)
+    if kind == "github":
+        headers = {"User-Agent": "culprit", "Accept": "application/vnd.github+json"}
+        token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+        if token:
+            headers["Authorization"] = "Bearer " + token
+        m = _api_get("https://api.github.com/repos/{}/pulls/{}".format(path, pr), headers)
+        if m:
+            return {"number": m.get("number"), "title": m.get("title"),
+                    "body": m.get("body"), "url": m.get("html_url")}
+    elif kind == "gitlab":
+        headers = {"User-Agent": "culprit"}
+        token = os.environ.get("GITLAB_TOKEN")
+        if token:
+            headers["PRIVATE-TOKEN"] = token
+        enc = urllib.parse.quote(path, safe="")
+        m = _api_get("https://{}/api/v4/projects/{}/merge_requests/{}".format(host, enc, pr), headers)
+        if m:
+            return {"number": m.get("iid"), "title": m.get("title"),
+                    "body": m.get("description"), "url": m.get("web_url")}
+    return None
+
+
 def resolve(repo: str, pr: Optional[int] = None, base: Optional[str] = None,
             head: Optional[str] = None) -> Dict[str, Any]:
     """Pick the best available source.
