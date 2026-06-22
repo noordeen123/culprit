@@ -10,10 +10,13 @@ Root-cause analysis for a pull request or branch.
 `culprit` looks at a PR (or the current branch), decides whether it's a **bugfix**
 or a **feature**, then:
 
-- **Bugfix** -> finds the commit that *introduced* the bug. It blames the lines the
-  fix removed/changed at the base revision and ranks the commits that last touched
-  them (the **suspect set**), then explains why it broke and whether the fix is
-  complete.
+- **Bugfix** -> reconstructs the bug's life story. It blames the lines the fix
+  removed/changed at the base revision to rank the commits that introduced it (the
+  **suspect set**), surfaces what the author was *trying* to do (the introducing
+  PR/commit + any linked issue), how long it lived and which **releases shipped it**,
+  whether the file is a recurring **hotspot**, and whether the fix is actually
+  complete (other untouched call sites, a missing test, a revert) - then explains
+  why it broke.
 - **Feature** -> maps the **blast radius**: who imports the changed modules, which
   tests cover them, and which touched files live in high-risk shared/core areas.
 
@@ -21,15 +24,16 @@ It is **read-only** - it never modifies your repo or the PR.
 
 ## Example
 
-The visual report (`rca --html report.html`) for a bugfix - a one-line formula
-that was silently broken five months before it was fixed. The **line-evolution
-timeline** walks every commit that touched those lines: created -> reformatted ->
-**the commit that broke it (red)** -> **the fix (green)**.
+The visual report (`rca --html report.html`) for a bugfix - a one-line area formula
+silently broken by a `perf` commit and shipped across three releases before it was
+fixed. The **line-evolution timeline** walks every commit that touched those lines:
+created -> reformatted -> **the commit that broke it (red)** -> **the fix (green)**.
 
 ![culprit RCA report](docs/report.png)
 
-A self-contained HTML file (no server, no CDN) with deep links, a bug-age banner,
-a test-gap callout, and expandable per-step diffs.
+A self-contained HTML file (no server, no CDN) with deep links, the introducing
+PR's intent, a lifecycle strip (how long it lived and the releases that shipped it),
+a fix-completeness callout, a test-gap callout, and expandable per-step diffs.
 
 ## Why the split design
 
@@ -96,7 +100,7 @@ Same goal - find the commit that introduced a bug - but opposite method:
 | Needs a failing test? | **Required** | No |
 | Runs your code? | Yes (serial checkouts) | No |
 | Speed | Minutes (~log2(N) runs) | Instant |
-| Answers | "first commit where the test fails" | suspect + **how the line evolved** + *why* + bug age + test gap + blast radius |
+| Answers | "first commit where the test fails" | suspect + **how the line evolved** + *why* + the introducing PR's intent + releases shipped + hotspot + fix completeness + test gap |
 | Confidence | Proof (if the test is reliable) | Strong heuristic |
 
 culprit is **not** a reimplementation of bisect - it reasons statically from the
@@ -123,9 +127,12 @@ rca --pr 16889 --html rca.html --narrative-file why.md # embed a pre-written nar
 The timeline needs no API key. The "Analysis" prose comes from `--narrative-file`
 (e.g. written by the Claude Code `/rca` skill) or from `--mode api`.
 
-The report also includes: a **TL;DR banner** naming the prime suspect and how long
-the bug lived before the fix; **GitHub deep links** on every commit / PR / file
-(derived from `origin`); **weight bars** ranking the suspects; **expand/collapse-all**
+The report also includes: a **TL;DR banner** naming the prime suspect with a
+**lifecycle strip** (how long the bug lived and the releases that shipped it); the
+introducing PR's **intent** (title, linked issue, message body) on the suspect card;
+a **fix-completeness** callout (other untouched references to the changed symbols,
+whether a test was added, revert detection); **deep links** on every commit / PR /
+file (derived from `origin`); **weight bars** ranking the suspects; **expand/collapse-all**
 and a **per-file filter** for the timeline; and a one-click **copy-as-markdown** to
 paste into the PR.
 

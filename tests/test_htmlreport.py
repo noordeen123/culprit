@@ -73,6 +73,29 @@ def test_gitlab_link_templates_carry_mr_prefix():
     assert '"pr_prefix": "!"' in html or '"pr_prefix":"!"' in html
 
 
+def test_intent_lifecycle_completeness_embedded():
+    r = _result()
+    r["bugfix"]["suspects"][0]["intent"] = {
+        "body": "Refactor box sizing.", "linked_issues": [42], "notes": [],
+        "pr": {"number": 812, "title": "Refactor box-sizing", "url": None},
+    }
+    r["bugfix"]["lifecycle"] = {
+        "releases": ["v3.10", "v3.16"], "releases_truncated": False,
+        "commits_span": 140, "authors_span": 3,
+        "recurrence": {"file": "a.jsx", "fix_count": 3, "is_hotspot": True},
+    }
+    r["bugfix"]["completeness"] = {
+        "symbols": ["foo"], "other_call_sites": {"foo": ["x.jsx", "y.jsx"]},
+        "untouched_count": 2, "adds_test": False, "is_revert": False,
+    }
+    html = htmlreport.render(r)
+    # the new data is embedded in the JSON node
+    assert "Refactor box-sizing" in html and "v3.16" in html
+    assert '"untouched_count": 2' in html
+    # the renderers that consume it are present
+    assert "linkIssue" in html and "ghIssue" in html and "Fix completeness" in html
+
+
 def test_render_escapes_script_breakout():
     r = _result()
     r["target"]["title"] = "Fix </script><b>x"

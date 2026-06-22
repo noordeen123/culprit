@@ -18,8 +18,8 @@ import os
 import sys
 from typing import Any, Dict, Optional
 
-from . import (bisect, blast_radius, classify, config, evolution, pr_context,
-               reasoning, report, suspect)
+from . import (bisect, blast_radius, classify, completeness, config, evolution,
+               intent, lifecycle, pr_context, reasoning, report, suspect)
 
 
 def analyze(repo: str, pr: Optional[int], base: str, head: Optional[str],
@@ -44,6 +44,12 @@ def analyze(repo: str, pr: Optional[int], base: str, head: Optional[str],
         bugfix["timeline"] = evolution.build_timeline(ctx, repo, bugfix.get("suspects", []))
         # Did the touched files have any tests? (why the bug slipped through)
         bugfix["test_gap"] = blast_radius.test_gap(ctx.get("changed_files", []), repo)
+        # Intent of the suspect/origin, the bug's lifecycle, and fix completeness.
+        if bugfix.get("suspects"):
+            bugfix["suspects"][0]["intent"] = intent.enrich(repo, ctx, bugfix["suspects"][0])
+        intent.enrich_origin(repo, ctx, bugfix["timeline"])
+        bugfix["lifecycle"] = lifecycle.build(repo, ctx, bugfix.get("suspects", []))
+        bugfix["completeness"] = completeness.assess(ctx, repo, bugfix.get("suspects", []))
 
     return report.build(ctx, cls, bugfix, feature)
 

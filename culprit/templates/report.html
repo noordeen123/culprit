@@ -56,6 +56,15 @@
   .bar { height:5px; background:var(--panel2); border-radius:3px; margin-top:7px; overflow:hidden; }
   .bar-fill { height:100%; background:var(--suspect); border-radius:3px; }
   .suspect-card:not(.prime) .bar-fill { background:var(--modified); }
+  /* intent + lifecycle */
+  .intent { margin-top:9px; border-top:1px dashed var(--line); padding-top:8px; }
+  .intent-row { font-size:12.5px; color:var(--muted); margin:3px 0; }
+  .intent-lead { color:var(--txt); font-weight:600; margin-right:6px; }
+  .intent-toggle { cursor:pointer; color:var(--accent); }
+  .intent-toggle:hover { text-decoration:underline; }
+  .intent-body { margin-top:6px; max-height:240px; white-space:pre-wrap; }
+  .lived .rel { color:var(--txt); }
+  .hot { color:var(--suspect); font-weight:650; }
   /* timeline */
   .toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
   .toolbar select { background:var(--panel2); color:var(--txt); border:1px solid var(--line);
@@ -158,6 +167,18 @@
   function chipFile(p){ var u=ghFile(p);
     return u ? '<a class="chip" target="_blank" rel="noopener" href="'+u+'">'+esc(p)+'</a>'
              : '<span class="chip">'+esc(p)+'</span>'; }
+  function ghIssue(n){ if(!t.repo_url||!n) return null;
+    var base=String(t.repo_url).replace(/\/+$/,'');
+    return (t.repo_host==='gitlab') ? base+'/-/issues/'+n : base+'/issues/'+n; }
+  // Only emit http(s) URLs, normalized + escaped, so a hostile repo_url can't
+  // break out of the href attribute or inject a javascript: link.
+  function safeHttpUrl(u){
+    if(!u) return null;
+    try{ var p=new URL(String(u)); if(p.protocol!=='http:'&&p.protocol!=='https:') return null; return esc(p.href); }
+    catch(_){ return null; }
+  }
+  function linkIssue(n){ var href=safeHttpUrl(ghIssue(n));
+    return href ? '<a target="_blank" rel="noopener" href="'+href+'">#'+esc(n)+'</a>' : '#'+esc(n); }
 
   function humanAge(fromISO, toISO){
     if(!fromISO) return null;
@@ -241,6 +262,19 @@
         ' - '+(p.subject||'')+' - '+(p.author||''));
       var age=humanAge(p.date, t.head_date);
       if(age) L.push('Introduced ~'+age+' before this fix.');
+      var lc=D.bugfix.lifecycle||{};
+      if((lc.releases||[]).length) L.push('Shipped in '+lc.releases.length+' release(s): '+lc.releases.join(', ')+'.');
+      if(lc.recurrence && lc.recurrence.is_hotspot) L.push('Hotspot: '+lc.recurrence.fix_count+' prior fixes to this file.');
+      var it=p.intent;
+      if(it){
+        if(it.pr && it.pr.title) L.push('Intent ('+PRP+it.pr.number+'): '+it.pr.title);
+        if((it.linked_issues||[]).length) L.push('Addressed: '+it.linked_issues.map(function(n){return '#'+n;}).join(', '));
+      }
+      var cp=D.bugfix.completeness;
+      if(cp){
+        if(cp.untouched_count>0) L.push('Fix completeness: '+cp.untouched_count+' other reference(s) to '+(cp.symbols||[]).join(', ')+' not touched.');
+        L.push('Test in this change: '+(cp.adds_test?'yes':'no')+(cp.is_revert?' · effectively a revert':'')+'.');
+      }
       L.push('');
     }
     if(NARR && NARR.trim()){ L.push(NARR.trim(), ''); }
@@ -293,12 +327,22 @@
   if(D.bugfix && (D.bugfix.suspects||[]).length){
     var p0=D.bugfix.suspects[0];
     var age=humanAge(p0.date, t.head_date);
+    var lc=D.bugfix.lifecycle||{};
+    var lived=[];
+    if((lc.releases||[]).length){
+      var rel=lc.releases.slice(0,6).map(esc).join(', ')+((lc.releases.length>6||lc.releases_truncated)?', …':'');
+      lived.push('shipped in <b class="rel">'+esc(lc.releases.length)+'</b> release'+(lc.releases.length>1?'s':'')+' ('+rel+')');
+    }
+    if(lc.commits_span) lived.push('<b class="rel">'+esc(lc.commits_span)+'</b> commits before the fix');
+    if(lc.authors_span) lived.push(esc(lc.authors_span)+' author'+(lc.authors_span>1?'s':'')+' touched it since');
+    if(lc.recurrence && lc.recurrence.is_hotspot) lived.push('<span class="hot">hotspot</span>: '+esc(lc.recurrence.fix_count)+' prior fixes to this file');
     var b = el('<div class="banner"></div>');
     b.innerHTML = '<span class="lead">⚠ prime suspect</span>'+
       linkHash(p0.short, p0.hash)+linkPR(p0.pr_number)+' - '+esc(p0.subject||'')+
       ' <span class="muted">('+esc(p0.author||'')+')</span>'+
       (age ? '<br><span class="muted">Introduced ~<b style="color:var(--txt)">'+esc(age)+
-             '</b> before this fix'+(p0.date?(' · '+shortDate(p0.date)+' -> '+shortDate(t.head_date)):'')+'.</span>' : '');
+             '</b> before this fix'+(p0.date?(' · '+shortDate(p0.date)+' -> '+shortDate(t.head_date)):'')+'.</span>' : '')+
+      (lived.length ? '<br><span class="muted lived">Lived: '+lived.join(' · ')+'.</span>' : '');
     app.appendChild(b);
   } else if(D.feature){
     var f0=D.feature, b2=el('<div class="banner feature"></div>');
@@ -337,6 +381,27 @@
       var pct = Math.max(4, Math.round((s.weight||0)*100));
       var card = el('<div class="card suspect-card '+(i===0?'prime':'')+'"></div>');
       var badge = (i===0 && confirmed) ? '<span class="confirm-badge">✓ bisect</span>' : '';
+      // Intent: what the author was trying to do when this commit went in.
+      var intentHtml='';
+      if(s.intent){
+        var it=s.intent, rows='';
+        if(it.pr && it.pr.title){
+          var prurl = it.pr.url || ghPR(it.pr.number);
+          rows += '<div class="intent-row"><span class="intent-lead">Intent</span>'+
+            (prurl?('<a target="_blank" rel="noopener" href="'+esc(prurl)+'">'+PRP+esc(it.pr.number)+'</a> '):'')+
+            esc(it.pr.title)+'</div>';
+        }
+        if((it.linked_issues||[]).length){
+          rows += '<div class="intent-row"><span class="intent-lead">Addressed</span>'+
+            it.linked_issues.map(linkIssue).join(', ')+'</div>';
+        }
+        if(it.body){
+          var bid='ibody'+i;
+          rows += '<div class="intent-row"><span class="intent-toggle" data-t="'+bid+'">▶ what they were changing</span>'+
+            '<pre class="code intent-body" id="'+bid+'" style="display:none">'+esc(it.body)+'</pre></div>';
+        }
+        if(rows) intentHtml='<div class="intent">'+rows+'</div>';
+      }
       card.innerHTML =
         '<div class="rank">'+(i+1)+'</div>'+
         '<div class="sc-body">'+
@@ -344,7 +409,13 @@
           '<div class="wt">'+esc(s.author||'')+' · '+shortDate(s.date)+' · '+
             esc(s.lines)+' line(s) · weight '+esc(s.weight)+'</div>'+
           '<div class="bar"><div class="bar-fill" style="width:'+pct+'%"></div></div>'+
+          intentHtml+
         '</div>';
+      var tog=card.querySelector('.intent-toggle');
+      if(tog){ tog.addEventListener('click', function(){
+        var bx=document.getElementById(tog.getAttribute('data-t'));
+        if(bx){ var open=bx.style.display!=='none'; bx.style.display=open?'none':'block';
+          tog.textContent=(open?'▶':'▼')+' what they were changing'; } }); }
       list.appendChild(card);
     });
     ss.appendChild(list);
@@ -382,6 +453,30 @@
         }
       }
       app.appendChild(bsec);
+    }
+
+    // fix completeness - is the root cause fully addressed, or just one symptom?
+    if(b.completeness){
+      var cp=b.completeness, sites=cp.other_call_sites||{}, syms=Object.keys(sites);
+      var cpsec=el('<section></section>');
+      cpsec.innerHTML='<h2>Fix completeness</h2>';
+      if(cp.untouched_count>0){
+        var box=el('<div class="card gap"></div>');
+        box.innerHTML='<div class="lead">⚠ '+esc(cp.untouched_count)+
+          ' other reference(s) to the changed symbol(s) were not touched</div>'+
+          '<div class="muted" style="margin:6px 0 8px">The fix may be partial - these files also use '+
+          syms.map(function(x){return '<code>'+esc(x)+'</code>';}).join(', ')+':</div>';
+        var ul=el('<div class="chips"></div>'), seenf={};
+        syms.forEach(function(x){ (sites[x]||[]).forEach(function(p){ if(!seenf[p]){ seenf[p]=1;
+          ul.appendChild(el('<span>'+chipFile(p)+'</span>')); } }); });
+        box.appendChild(ul); cpsec.appendChild(box);
+      }
+      var flags=[(cp.adds_test?'✓ ships a test':'✗ no test in this change')];
+      if(cp.is_revert) flags.push('↩ effectively reverts the introducing change');
+      var fbox=el('<div class="card '+(cp.adds_test?'covered':'')+'" style="margin-top:10px"></div>');
+      fbox.innerHTML='<span class="'+(cp.adds_test?'lead':'muted')+'">'+flags.map(esc).join(' · ')+'</span>';
+      cpsec.appendChild(fbox);
+      app.appendChild(cpsec);
     }
 
     // test gap - why the regression slipped through
