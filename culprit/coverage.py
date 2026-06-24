@@ -1,14 +1,12 @@
 """Optional coverage precision: which *changed lines* are actually uncovered.
 
-culprit's default test-gap is a fast import heuristic ("this file has no test that
-imports it"). When you point `--coverage` at an lcov or Cobertura report, this
-module turns that into ground truth: it parses the per-line coverage, maps it to
-the lines this change added, and reports exactly which changed lines no test
-exercises. That sharpens the QA risk score.
+The default test-gap is an import heuristic ("this file has no test that imports
+it"). Given an lcov or Cobertura report via ``--coverage``, this parses the per-line
+coverage, maps it to the lines this change added, and reports exactly which changed
+lines no test exercises - feeding the risk score.
 
-Note: aggregate coverage reports are suite-level, so they tell us *whether* a line
-is covered, not *which test* covers it - hence this refines the gap, not the
-per-test selection (which would need contextual coverage).
+Aggregate coverage is suite-level, so it tells us *whether* a line is covered, not
+*which test* covers it; this refines the gap, not per-test selection.
 """
 from __future__ import annotations
 

@@ -1,11 +1,9 @@
-"""RCA from a symptom: parse a stack trace and locate the crashing lines.
+"""RCA from a stack trace: parse the frames and locate the crashing lines.
 
-This is the capability git bisect categorically lacks - it works *before* you
-have a fix or a failing test. We parse the frames of a stack trace (Python, JS/
-Node, Java, Go), resolve them to files tracked in the repo, and hand the crashing
-``(file, line)`` pairs to the normal bugfix pipeline (blame -> suspect, line
-evolution, blast radius, risk) by synthesizing a diff whose removed ranges *are*
-those lines. No fix, no PR, no test required.
+Parses Python / JS / Node / Java / Go stack frames, resolves them to files tracked
+in the repo, and hands the crashing ``(file, line)`` pairs to the normal bugfix
+pipeline by synthesizing a diff whose removed ranges are those lines - so blame,
+timeline, and risk run with no fix, PR, or test in hand.
 """
 from __future__ import annotations
 

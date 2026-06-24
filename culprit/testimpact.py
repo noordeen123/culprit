@@ -1,13 +1,9 @@
-"""Test impact analysis: which existing tests should run for this change?
+"""Test impact analysis: which existing tests should run for this change.
 
-Given the changed files, walk the **reverse-import graph** (who imports whom) up
-to a few hops and collect the test files that reach the change - directly (a test
-imports the changed module) or transitively (a test imports a module that imports
-the changed module). That's the minimal set worth running for the diff, the
-open-source, no-ML version of "predictive test selection".
-
-Reuses ``blast_radius``'s reverse-import map and test/source conventions, so it is
-language-agnostic and read-only.
+Walks the reverse-import graph (who imports whom) up to a few hops from the changed
+files and collects the test files that reach them - directly (a test imports the
+changed module) or transitively. Reuses ``blast_radius``'s reverse-import map and
+test/source conventions; language-agnostic and read-only.
 """
 from __future__ import annotations
 

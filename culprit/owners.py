@@ -1,8 +1,7 @@
 """Suggest reviewers for a change: CODEOWNERS rules + git authorship.
 
-Two signals, both read-only: the owners declared in a ``CODEOWNERS`` file for the
-changed paths, and the people who have historically authored the changed (and
-suspect) files. Helps answer "who should look at this?" - a QA/review aid.
+Combines the owners declared in a ``CODEOWNERS`` file for the changed paths with the
+people who have historically authored the changed (and suspect) files. Read-only.
 """
 from __future__ import annotations
 

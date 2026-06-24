@@ -1,13 +1,9 @@
-"""Turn the structured analysis into one explainable QA risk score.
+"""Combine the analysis signals into one QA risk score.
 
-This is the reframe that makes culprit a QA gate rather than a post-mortem: it
-combines the signals the engine already computes - test gap, fix completeness,
-hotspot recurrence, blast radius, churn - into a single 0-100 score with a
-level (low/medium/high) and a list of the factors that contributed, so a CI job
-can fail on `--fail-on high` and a reviewer can see *why*.
-
-No ML, no history, no new dependencies - just a weighted sum over the existing
-result dict, fully deterministic and explainable.
+Sums weighted factors over the existing result dict - test gap, fix completeness,
+hotspot recurrence, blast radius, churn - into a 0-100 score and a level
+(low/medium/high), recording each contributing factor so a reviewer can see why.
+``--fail-on <level>`` turns the level into a CI exit code.
 """
 from __future__ import annotations
 

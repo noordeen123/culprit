@@ -1,9 +1,9 @@
 """Change coupling: files that historically change together.
 
-Mines ``git log --name-only`` to learn which files tend to be committed together.
-For the files in this change it surfaces (a) their strongest co-change partners and
-(b) the **missed-change** signal: a file that usually changes alongside the ones you
-touched but isn't in this change - a likely forgotten edit. Pure git history, no ML.
+Mines ``git log --name-only`` for which files tend to be committed together. For the
+files in this change it surfaces their strongest co-change partners and the
+missed-change signal: a file that usually changes alongside the ones you touched but
+isn't in this change - a likely forgotten edit.
 """
 from __future__ import annotations
 
