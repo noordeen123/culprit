@@ -8,20 +8,28 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
+from . import risk
+
 
 def build(ctx: Dict[str, Any], classification: Dict[str, Any],
-          bugfix: Optional[Dict[str, Any]], feature: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+          bugfix: Optional[Dict[str, Any]], feature: Optional[Dict[str, Any]],
+          coverage: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     target = {k: ctx.get(k) for k in (
         "source", "kind", "pr_number", "title", "head_ref", "base_ref",
         "head_sha", "base_sha", "head_date", "repo_url", "repo_host", "links", "labels")}
     target["changed_files"] = ctx.get("changed_files", [])
     target["commit_count"] = len(ctx.get("commits", []))
-    return {
+    result = {
         "target": target,
         "classification": classification,
         "bugfix": bugfix,
         "feature": feature,
     }
+    if coverage is not None:
+        result["coverage"] = coverage
+    # A single explainable QA risk score over the signals above (CI gate input).
+    result["risk"] = risk.score(result)
+    return result
 
 
 def _fmt_target(t: Dict[str, Any]) -> str:
@@ -42,6 +50,12 @@ def markdown_skeleton(result: Dict[str, Any]) -> str:
     for ev in c.get("evidence", []):
         lines.append("- {}".format(ev))
     lines.append("")
+    rk = result.get("risk") or {}
+    if rk:
+        lines.append("**QA risk:** {} ({}/100)".format(rk.get("level"), rk.get("score")))
+        for fct in rk.get("factors", []):
+            lines.append("- +{} {} - {}".format(fct["points"], fct["name"], fct["detail"]))
+        lines.append("")
     lines.append("Changed files ({}):".format(len(t["changed_files"])))
     for f in t["changed_files"][:40]:
         lines.append("- {}".format(f))
@@ -161,5 +175,37 @@ def markdown_skeleton(result: Dict[str, Any]) -> str:
         lines.append("## Risk assessment")
         lines.append("_(reasoning layer fills: affected areas, risk ranking, test surface "
                      "to exercise)_")
+
+    ti = result.get("test_impact") or {}
+    if ti.get("tests"):
+        lines.append("")
+        lines.append("## Tests to run ({})".format(len(ti["tests"])))
+        for t in ti["tests"][:40]:
+            lines.append("- {}".format(t))
+
+    cov = result.get("coverage") or {}
+    if cov.get("uncovered"):
+        lines.append("")
+        lines.append("## Uncovered changed lines")
+        for f, lns in list(cov["uncovered"].items())[:20]:
+            lines.append("- {}: {}".format(f, ", ".join(str(n) for n in lns[:15])))
+
+    co = result.get("coupling") or {}
+    if co.get("missed"):
+        lines.append("")
+        lines.append("## Possibly missed (co-change)")
+        for m in co["missed"]:
+            lines.append("- `{}` usually changes with {} (~{:.0%}) - not in this change".format(
+                m["file"], ", ".join(m["with"]), m["confidence"]))
+
+    ow = result.get("owners") or {}
+    if ow.get("codeowners") or ow.get("authors"):
+        lines.append("")
+        lines.append("## Suggested reviewers")
+        if ow.get("codeowners"):
+            lines.append("- Code owners: {}".format(", ".join(ow["codeowners"])))
+        if ow.get("authors"):
+            lines.append("- Top authors: {}".format(", ".join(
+                "{} ({})".format(a["name"], a["commits"]) for a in ow["authors"])))
 
     return "\n".join(lines) + "\n"

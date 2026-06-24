@@ -26,8 +26,10 @@ It is **read-only** - it never modifies your repo or the PR.
 
 The visual report (`rca --html report.html`) for a bugfix - a one-line area formula
 silently broken by a `perf` commit and shipped across three releases before it was
-fixed. The **line-evolution timeline** walks every commit that touched those lines:
-created -> reformatted -> **the commit that broke it (red)** -> **the fix (green)**.
+fixed. Top to bottom: the **QA risk score** with its factors, the introducing commit's
+**intent** (+ linked issue), the **line-evolution timeline** (created -> reformatted ->
+**broke (red)** -> **fix (green)**), the **tests to run**, the **co-change** files you
+may have missed, and **suggested reviewers**.
 
 ![culprit RCA report](docs/report.png)
 
@@ -48,6 +50,50 @@ isolated behind a `ReasoningAdapter`:
   (`claude-opus-4-8` by default, `--fast` -> `claude-sonnet-4-6`).
 
 Same engine, two frontends.
+
+## How it works
+
+Everything runs off **one normalized context** (`ctx`) and produces **one structured
+result** (JSON). Each step is a small, deterministic module that reads git and writes a
+slice of that result; the only optional, non-deterministic step is the LLM narrative.
+
+```
+  PR / branch ---.
+  stack trace ---+--> pr_context  -->  ctx  (diff, changed files, commits, host links)
+                          |
+                          v
+                    classify   (bugfix vs feature, with evidence)
+                   /                                  \
+          bugfix  v                                    v  feature
+   suspect   (blame the lines the fix removed)     blast_radius
+     -> evolution     (how the line evolved)        (who imports the changed code,
+     -> intent / lifecycle / completeness            covering tests, high-risk modules)
+     -> test_gap
+                   \                                  /
+                    v                                v
+                  report.build  -->  QA risk score
+                          |
+            + test_impact . coupling . owners . coverage
+                          |
+                          v
+   reasoning (optional LLM "why")  -->  output:
+      JSON  |  HTML report  |  markdown  |  --select-tests  |  --fail-on (CI exit code)
+```
+
+1. **Resolve** the target into `ctx` - `pr_context` tries `gh`, then the GitHub/GitLab
+   REST API, then plain local git; `--trace` instead turns stack frames into a synthetic
+   diff so the *same* pipeline can run on a crash.
+2. **Classify** bugfix vs feature from branch/label/title/commit signals.
+3. **Analyze** down one path: a bugfix gets the suspect set, line-evolution timeline, and
+   the "bug's life story" (intent, lifecycle, completeness); a feature gets the blast radius.
+4. **Score & augment** - `report.build` rolls the signals into a QA risk score, then test
+   impact, co-change, reviewers, and (optional) coverage are attached.
+5. **Render** - the structured result becomes JSON, a self-contained HTML report, markdown,
+   a test list, or a CI exit code. The LLM "why" is the only step that needs a key.
+
+Every step is **read-only** (`git status` is unchanged after any run) and **repo-agnostic**
+(no hardcoded paths/hosts). For the full module map and data shapes, see
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Install
 
@@ -88,7 +134,63 @@ rca --mode api --fast    # standalone reasoning via the Claude API
 rca --json               # structured result only
 rca --html report.html --open   # self-contained visual report (timeline UI)
 rca --pr 16889 --bisect "pytest tests/test_x.py::test_y"   # confirm the suspect via git bisect
+rca --pr 16889 --fail-on high   # QA gate: exit non-zero when risk is high (for CI)
+rca --select-tests              # print the tests to run for this change (CI-pipeable)
+rca --trace crash.txt           # RCA from a stack trace (no fix/PR/test needed)
 ```
+
+## More than a smarter `git bisect`
+
+`git bisect` finds one introducing commit *after* you already have a reliable failing
+test. culprit is a **QA tool** that also works *before* a bug ships and *from a symptom*:
+
+- **QA risk score + gate** - one explainable score over test gap, fix completeness,
+  hotspot recurrence, blast radius, and churn; `--fail-on high` gates CI (see above).
+  Pass `--coverage <lcov|cobertura>` to replace the import heuristic with ground truth -
+  it pinpoints exactly which changed lines are uncovered.
+- **Test impact analysis** - `--select-tests` lists the existing tests that reach the
+  changed code (direct + transitive via the reverse-import graph). Pipe it:
+  `pytest $(rca --select-tests)`.
+- **RCA from a stack trace** - `rca --trace crash.txt` (or `... --trace -` from stdin)
+  parses a Python / JS / Java / Go trace, resolves the frames to repo files, and blames
+  the crashing lines to a suspect commit - **no fix, PR, or failing test required**.
+- **Predictive signals** - **co-change** flags a file that usually changes with the ones
+  you touched but is missing here ("did you forget X?"); **reviewer suggestions** come
+  from `CODEOWNERS` + git authorship.
+
+All of this is read-only and ships in the same self-contained HTML report.
+
+## QA risk score
+
+Every report carries a single **QA risk score** (0-100, `low`/`medium`/`high`) that
+combines the signals culprit already computes - test gap, fix completeness, hotspot
+recurrence, blast radius, churn - into one explainable number, with the contributing
+factors listed (no ML, fully deterministic). `--fail-on {low,medium,high}` makes culprit
+exit non-zero when the level meets or exceeds the threshold, so it can act as a **CI
+quality gate**.
+
+## Use in CI (GitHub Actions)
+
+culprit runs as a **read-only QA gate**: it generates the HTML report as a build artifact
+and signals risk via the **exit code** - it never comments on or writes to the PR. Copy
+[`examples/github-actions/culprit-pr.yml`](examples/github-actions/culprit-pr.yml) into
+`.github/workflows/`:
+
+```yaml
+- uses: actions/checkout@v4
+  with: { fetch-depth: 0 }          # full history for blame / git log -L
+- uses: actions/setup-python@v5
+  with: { python-version: "3.12" }
+- run: pip install culprit
+- env: { GH_TOKEN: "${{ github.token }}" }   # read-only PR metadata
+  run: rca --pr ${{ github.event.pull_request.number }} --html culprit-report.html --no-save --fail-on high
+- if: always()
+  uses: actions/upload-artifact@v4
+  with: { name: culprit-report, path: culprit-report.html }
+```
+
+The job fails only when the QA risk is `high`; the report is uploaded either way. To gate
+in any other CI, run `rca ... --fail-on high` and check the exit status.
 
 ## culprit vs `git bisect`
 

@@ -18,14 +18,14 @@ import os
 import sys
 from typing import Any, Dict, Optional
 
-from . import (bisect, blast_radius, classify, completeness, config, evolution,
-               intent, lifecycle, pr_context, reasoning, report, suspect)
+from . import (bisect, blast_radius, classify, completeness, config, coupling,
+               coverage, evolution, intent, lifecycle, owners, pr_context,
+               reasoning, report, risk, suspect, testimpact, trace)
 
 
-def analyze(repo: str, pr: Optional[int], base: str, head: Optional[str],
-            force: Optional[str] = None) -> Dict[str, Any]:
-    """Run the full deterministic pipeline; return the structured result."""
-    ctx = pr_context.resolve(repo, pr=pr, base=base, head=head)
+def _run(ctx: Dict[str, Any], repo: str, force: Optional[str] = None,
+         coverage_path: Optional[str] = None) -> Dict[str, Any]:
+    """Run the deterministic pipeline over an already-resolved context."""
     cls = classify.classify(ctx)
     if force:
         # Reflect the override in the displayed classification, not just the path.
@@ -51,7 +51,43 @@ def analyze(repo: str, pr: Optional[int], base: str, head: Optional[str],
         bugfix["lifecycle"] = lifecycle.build(repo, ctx, bugfix.get("suspects", []))
         bugfix["completeness"] = completeness.assess(ctx, repo, bugfix.get("suspects", []))
 
-    return report.build(ctx, cls, bugfix, feature)
+    # Optional coverage precision: which changed lines are actually uncovered.
+    cov = None
+    if coverage_path:
+        try:
+            cov = coverage.analyze(ctx.get("diff", ""), coverage.parse(coverage_path))
+        except Exception as exc:  # never let a bad coverage file break the run
+            cov = {"uncovered": {}, "files_with_uncovered": 0, "checked_files": 0,
+                   "notes": ["could not read coverage report: {}".format(exc)]}
+
+    result = report.build(ctx, cls, bugfix, feature, coverage=cov)
+    # Test impact: which existing tests to run for this change (any verdict).
+    result["test_impact"] = testimpact.select(ctx, repo)
+    # Predictive signals: co-change ("did you forget X?") + reviewer suggestions.
+    changed = ctx.get("changed_files", [])
+    suspects = (bugfix or {}).get("suspects", [])
+    result["coupling"] = coupling.cochange(repo, changed)
+    result["owners"] = owners.suggest(repo, changed, suspects)
+    return result
+
+
+def analyze(repo: str, pr: Optional[int], base: str, head: Optional[str],
+            force: Optional[str] = None, coverage_path: Optional[str] = None) -> Dict[str, Any]:
+    """Resolve a PR/branch into a context and run the pipeline."""
+    ctx = pr_context.resolve(repo, pr=pr, base=base, head=head)
+    return _run(ctx, repo, force, coverage_path)
+
+
+def analyze_trace(repo: str, text: str, head: Optional[str] = None) -> Dict[str, Any]:
+    """RCA from a stack trace: parse frames, resolve to repo files, run the pipeline."""
+    frames = trace.parse(text)
+    resolved, skipped = trace.resolve_files(repo, frames)
+    if not resolved:
+        raise SystemExit("culprit: no stack frames resolved to files tracked in this repo.")
+    ctx = pr_context.from_trace(repo, resolved, head=head)
+    result = _run(ctx, repo, force="bugfix")
+    result["trace"] = {"frames": resolved, "skipped": [f["file"] for f in skipped]}
+    return result
 
 
 def _save(result: Dict[str, Any], narrative: str) -> str:
@@ -94,6 +130,8 @@ def main(argv: Optional[list] = None) -> int:
     p.add_argument("--last", action="store_true",
                    help="analyze only the latest commit (HEAD~1), ignoring the configured base")
     p.add_argument("--force", choices=["bugfix", "feature"], help="override classification")
+    p.add_argument("--trace", metavar="PATH",
+                   help="RCA from a stack trace (file path, or - for stdin); needs no fix/PR/test")
     p.add_argument("--bisect", metavar="CMD",
                    help="repro/test command - runs git bisect (in a throwaway worktree) to "
                         "confirm the suspect. Must exit non-zero when the bug is present.")
@@ -103,11 +141,17 @@ def main(argv: Optional[list] = None) -> int:
                    help="reasoning layer (default: harness)")
     p.add_argument("--fast", action="store_true", help="api mode: use the faster/cheaper model")
     p.add_argument("--json", action="store_true", help="print structured result only")
+    p.add_argument("--select-tests", dest="select_tests", action="store_true",
+                   help="print the tests to run for this change (one per line), then exit")
+    p.add_argument("--coverage", metavar="PATH",
+                   help="lcov/Cobertura report to pinpoint which changed lines are uncovered")
     p.add_argument("--html", metavar="PATH", help="write a self-contained HTML report to PATH")
     p.add_argument("--open", dest="open_", action="store_true", help="open the HTML report in a browser")
     p.add_argument("--narrative-file", metavar="PATH",
                    help="embed a pre-written markdown narrative in the HTML report")
     p.add_argument("--no-save", action="store_true", help="don't write to ~/culprit/output")
+    p.add_argument("--fail-on", dest="fail_on", choices=["low", "medium", "high"],
+                   help="exit non-zero when the QA risk level meets/exceeds this (CI gate)")
     args = p.parse_args(argv)
 
     repo = os.path.abspath(os.path.expanduser(args.repo))
@@ -123,7 +167,16 @@ def main(argv: Optional[list] = None) -> int:
     else:
         base = config.repo_base(repo)
 
-    result = analyze(repo, pr=pr, base=base, head=args.head, force=args.force)
+    if args.trace:
+        text = (sys.stdin.read() if args.trace == "-"
+                else open(os.path.expanduser(args.trace), encoding="utf-8").read())
+        result = analyze_trace(repo, text, head=args.head)
+        tr = result.get("trace") or {}
+        sys.stderr.write("trace: {} frame(s) resolved, {} skipped\n".format(
+            len(tr.get("frames", [])), len(tr.get("skipped", []))))
+    else:
+        result = analyze(repo, pr=pr, base=base, head=args.head, force=args.force,
+                         coverage_path=args.coverage)
 
     # Optional: confirm the suspect with a real git bisect (read-only, in a worktree).
     if args.bisect and result.get("bugfix"):
@@ -140,9 +193,26 @@ def main(argv: Optional[list] = None) -> int:
             msg = "first-bad {} ({})".format((bz.get("first_bad") or {}).get("short", "?"), note)
         sys.stderr.write("bisect: {}\n".format(msg))
 
+    # Test selection mode: just print the tests to run (CI-pipeable), then exit.
+    if args.select_tests:
+        for t in (result.get("test_impact") or {}).get("tests", []):
+            print(t)
+        return 0
+
+    # QA gate: exit non-zero when risk meets/exceeds --fail-on (no PR writes).
+    gate_code = 0
+    if args.fail_on:
+        rk = result.get("risk") or {}
+        lvl, sc = rk.get("level", "low"), rk.get("score", 0)
+        if risk.level_at_least(lvl, args.fail_on):
+            gate_code = 2
+            sys.stderr.write("QA gate: risk {} ({}/100) >= {} - failing.\n".format(lvl, sc, args.fail_on))
+        else:
+            sys.stderr.write("QA gate: risk {} ({}/100) < {} - passing.\n".format(lvl, sc, args.fail_on))
+
     if args.json:
         print(json.dumps(result, indent=2, default=str))
-        return 0
+        return gate_code
 
     # Resolve the "why" narrative for the report: an explicit file wins, else
     # the API adapter generates one; harness mode leaves it empty (the visual
@@ -163,7 +233,7 @@ def main(argv: Optional[list] = None) -> int:
         if args.open_:
             import webbrowser
             webbrowser.open("file://" + out_path)
-        return 0
+        return gate_code
 
     # Default: markdown to stdout.
     narrative = narrative_md or reasoning.get_adapter(mode=args.mode, fast=args.fast).explain(result)
@@ -172,7 +242,7 @@ def main(argv: Optional[list] = None) -> int:
     if not args.no_save:
         out_dir = _save(result, narrative)
         sys.stderr.write("\nSaved to {}\n".format(out_dir))
-    return 0
+    return gate_code
 
 
 if __name__ == "__main__":

@@ -8,6 +8,22 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **QA risk score + CI gate.** Every report now carries a single explainable risk
+  score (0-100, low/medium/high) combining test gap, fix completeness, hotspot
+  recurrence, blast radius, and churn. `--fail-on {low,medium,high}` exits non-zero
+  so culprit can act as a read-only CI quality gate; a GitHub Actions template ships
+  in `examples/github-actions/culprit-pr.yml`. The HTML report shows a risk banner.
+- **Test impact analysis.** `--select-tests` prints the existing tests that reach the
+  changed code (direct + transitive via the reverse-import graph), CI-pipeable; the
+  structured result gains `test_impact`. `--coverage <lcov|cobertura>` adds ground-truth
+  precision, reporting exactly which changed lines are uncovered (sharpening the risk score).
+- **RCA from a stack trace.** `--trace PATH` (or `-` for stdin) parses a Python/JS/
+  Java/Go stack trace, resolves the frames to repo files, and runs the full RCA
+  (suspect + line evolution + risk) on the crashing lines - no fix, PR, or test needed.
+- **Predictive signals.** Change-coupling detection surfaces files that historically
+  change together with the ones you touched but are missing from the change ("did you
+  forget X?"); reviewer suggestions come from `CODEOWNERS` + git authorship.
+
 - The bug's life story for a bugfix: the introducing commit's **intent** (its
   message body + the PR/issue it came from), a **lifecycle** view (which releases
   shipped the bug, commits/authors spanned, recurring-hotspot detection via
