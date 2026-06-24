@@ -316,6 +316,45 @@ def from_pr_rest(repo: str, pr: int) -> Optional[Dict[str, Any]]:
     return None
 
 
+def from_trace(repo: str, frames: List[Dict[str, Any]], head: Optional[str] = None) -> Dict[str, Any]:
+    """Build a context from resolved stack frames (RCA from a symptom).
+
+    Synthesizes a diff whose removed ranges are the crashing lines, so the normal
+    bugfix pipeline blames them at ``head`` (the current code) to find the suspect.
+    No real diff/PR exists; base == head == HEAD.
+    """
+    head = head or "HEAD"
+    head_sha = _rev(repo, head) or head
+
+    by_file: Dict[str, List[int]] = {}
+    for fr in frames:
+        by_file.setdefault(fr["file"], []).append(int(fr["line"]))
+
+    parts: List[str] = []
+    for path, lines in by_file.items():
+        parts.append("diff --git a/{0} b/{0}".format(path))
+        parts.append("--- a/{0}".format(path))
+        parts.append("+++ b/{0}".format(path))
+        for ln in sorted(set(lines)):
+            parts.append("@@ -{0},1 +{0},0 @@".format(ln))
+            parts.append("-trace")
+    diff = "\n".join(parts) + ("\n" if parts else "")
+
+    return {
+        "source": "trace", "kind": "trace",
+        "pr_number": None, "title": "RCA from stack trace", "body": None, "labels": [],
+        "head_ref": head, "base_ref": head,
+        "head_sha": head_sha, "base_sha": head_sha,
+        "head_date": _commit_date(repo, head_sha),
+        "repo_url": _remote_web_url(repo),
+        "repo_host": host_kind(repo),
+        "links": _links(repo),
+        "commits": [],
+        "changed_files": list(by_file.keys()),
+        "diff": diff,
+    }
+
+
 def pr_meta(repo: str, pr: int) -> Optional[Dict[str, Any]]:
     """Best-effort ``{number, title, body, url}`` for an *arbitrary* PR/MR number.
 

@@ -9,10 +9,7 @@ import pytest
 from culprit import bisect, cli, pr_context, suspect
 
 
-def _git(repo, *args, **kw):
-    env = dict(os.environ, **kw.get("env", {}))
-    subprocess.run(["git", "-C", repo, *args], check=True,
-                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+from githelper import git as _git
 
 
 @pytest.fixture()

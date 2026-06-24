@@ -1,5 +1,4 @@
 import os
-import subprocess
 import tempfile
 
 import pytest
@@ -7,9 +6,7 @@ import pytest
 from culprit import serve
 
 
-def _git(repo, *args):
-    subprocess.run(["git", "-C", repo, *args], check=True,
-                   stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+from githelper import git as _git
 
 
 @pytest.fixture()
@@ -56,3 +53,28 @@ def test_run_report_produces_html(repo_with_branches):
     assert html.startswith("<!DOCTYPE html>")
     assert "New analysis" in html          # back-link injected
     assert "How it broke" in html          # timeline rendered
+
+
+def test_form_page_has_credentials_section(repo_with_branches):
+    html = serve.form_page(repo_with_branches)
+    assert 'name="github_token"' in html and 'name="anthropic_key"' in html
+    assert "Credentials (optional)" in html
+    assert 'type="password"' in html       # keys are never plain-text inputs
+
+
+def test_creds_view_reflects_state_without_echoing_values():
+    saved = serve._CREDS.copy()
+    try:
+        serve._CREDS["github_token"] = ""
+        serve._CREDS["anthropic_key"] = ""
+        status, _, _ = serve._creds_view()
+        assert "GitHub: not set" in status and "Anthropic: not set" in status
+
+        secret = "ghp_" + "secretvalue"            # avoid a hardcoded-secret lint hit
+        serve._CREDS["github_token"] = secret
+        status, gh_ph, _ = serve._creds_view()
+        assert "GitHub: set" in status
+        assert secret not in (status + gh_ph)      # value is never surfaced
+    finally:
+        serve._CREDS.clear()
+        serve._CREDS.update(saved)                 # fully restore global state

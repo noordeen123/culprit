@@ -37,6 +37,17 @@
     letter-spacing:.08em; margin-right:8px; }
   .banner.feature { border-color:var(--modified); background:linear-gradient(90deg,#13212c,#171a21); }
   .banner.feature .lead { color:var(--modified); }
+  .risk { border-radius:10px; padding:12px 16px; margin:0 0 18px; border:1px solid var(--line); }
+  .risk.low { border-color:var(--fix); background:linear-gradient(90deg,#13241c,#171a21); }
+  .risk.medium { border-color:#d9a23a; background:linear-gradient(90deg,#241f12,#171a21); }
+  .risk.high { border-color:var(--suspect); background:linear-gradient(90deg,#241419,#171a21); }
+  .risk .lead { font-weight:700; text-transform:uppercase; font-size:11px; letter-spacing:.08em; margin-right:8px; }
+  .risk.low .lead { color:var(--fix); }
+  .risk.medium .lead { color:#d9a23a; }
+  .risk.high .lead { color:var(--suspect); }
+  .risk .sc { font-size:17px; font-weight:700; text-transform:uppercase; }
+  .risk ul { margin:8px 0 0; padding-left:18px; }
+  .risk li { color:var(--muted); font-size:12.5px; }
   section { margin:26px 0; }
   h2 { font-size:15px; margin:0 0 12px; font-weight:650; color:var(--txt); }
   .muted { color:var(--muted); }
@@ -256,6 +267,7 @@
     var who = t.pr_number ? (PRT+' '+PRP+t.pr_number) : ('branch '+(t.head_ref||''));
     var L = ['# RCA: '+who+(t.title?(' - '+t.title):''), ''];
     L.push('**'+(c.verdict||'unknown')+'** · confidence '+c.confidence+' · base `'+(t.base_ref||'')+'`', '');
+    if(D.risk){ L.push('**QA risk:** '+D.risk.level+' ('+D.risk.score+'/100)', ''); }
     if(D.bugfix && (D.bugfix.suspects||[]).length){
       var p=D.bugfix.suspects[0];
       L.push('**Prime suspect:** `'+p.short+'`'+(p.pr_number?(' ('+PRP+p.pr_number+')'):'')+
@@ -322,6 +334,18 @@
   copyBtn.addEventListener('click', function(){ copyMarkdown(copyBtn); });
   hd.appendChild(copyBtn);
   app.appendChild(hd);
+
+  // ---- QA risk banner ----
+  if(D.risk){
+    var rk=D.risk, rb=el('<div class="risk '+esc(rk.level)+'"></div>');
+    var facs=(rk.factors||[]).map(function(f){
+      return '<li><b style="color:var(--txt)">+'+esc(f.points)+'</b> '+esc(f.name)+' - '+esc(f.detail)+'</li>';
+    }).join('');
+    rb.innerHTML='<span class="lead">QA risk</span><span class="sc">'+esc(rk.level)+'</span>'+
+      ' <span class="muted">'+esc(rk.score)+'/100</span>'+
+      (facs?'<ul>'+facs+'</ul>':'<div class="muted" style="margin-top:4px">No notable risk factors.</div>');
+    app.appendChild(rb);
+  }
 
   // ---- TL;DR banner ----
   if(D.bugfix && (D.bugfix.suspects||[]).length){
@@ -597,6 +621,47 @@
       fs.appendChild(ct);
     }
     app.appendChild(fs);
+  }
+
+  // ---- tests to run (impact analysis) ----
+  if(D.test_impact && (D.test_impact.tests||[]).length){
+    var ti=D.test_impact, tis=el('<section></section>');
+    tis.innerHTML='<h2>Tests to run ('+esc(ti.tests.length)+')</h2>'+
+      '<div class="muted" style="margin-bottom:8px">Existing tests that reach the changed code - run these for this change.</div>';
+    var tul=el('<div class="chips"></div>');
+    ti.tests.slice(0,60).forEach(function(p){ tul.appendChild(el('<span>'+chipFile(p)+'</span>')); });
+    tis.appendChild(tul); app.appendChild(tis);
+  }
+
+  // ---- uncovered changed lines (from --coverage) ----
+  if(D.coverage && Object.keys(D.coverage.uncovered||{}).length){
+    var uc=D.coverage.uncovered, usec=el('<section></section>');
+    usec.innerHTML='<h2>Uncovered changed lines</h2>'+
+      '<div class="muted" style="margin-bottom:8px">Changed lines no test exercises (per the coverage report).</div>';
+    var uul=el('<div></div>');
+    Object.keys(uc).forEach(function(f){ uul.appendChild(el('<div style="margin:3px 0">'+chipFile(f)+
+      ' <span class="muted">lines '+esc(uc[f].slice(0,15).join(", "))+'</span></div>')); });
+    usec.appendChild(uul); app.appendChild(usec);
+  }
+
+  // ---- possibly missed (co-change) ----
+  if(D.coupling && (D.coupling.missed||[]).length){
+    var cm=D.coupling.missed, csec=el('<section></section>');
+    csec.innerHTML='<h2>Possibly missed (co-change)</h2>'+
+      '<div class="muted" style="margin-bottom:8px">Files that usually change with the ones you touched, but aren\'t in this change.</div>';
+    var cul=el('<div></div>');
+    cm.forEach(function(m){ cul.appendChild(el('<div style="margin:3px 0">'+chipFile(m.file)+
+      ' <span class="muted">~'+Math.round(m.confidence*100)+'% with '+esc((m.with||[]).map(basename).join(", "))+'</span></div>')); });
+    csec.appendChild(cul); app.appendChild(csec);
+  }
+
+  // ---- suggested reviewers ----
+  if(D.owners && ((D.owners.codeowners||[]).length || (D.owners.authors||[]).length)){
+    var ow=D.owners, osec=el('<section></section>'), bits='';
+    if((ow.codeowners||[]).length) bits+='<div style="margin:3px 0"><b style="color:var(--txt)">Code owners:</b> '+ow.codeowners.map(esc).join(', ')+'</div>';
+    if((ow.authors||[]).length) bits+='<div style="margin:3px 0"><b style="color:var(--txt)">Top authors:</b> '+ow.authors.map(function(a){return esc(a.name)+' ('+esc(a.commits)+')';}).join(', ')+'</div>';
+    osec.innerHTML='<h2>Suggested reviewers</h2>'+bits;
+    app.appendChild(osec);
   }
 
   // ---- footer: base + regenerate hint ----

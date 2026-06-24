@@ -1,0 +1,43 @@
+# culprit QA gate - copy this into .github/workflows/ in your repo.
+#
+# Runs culprit on every pull request, uploads the HTML report as an artifact,
+# and FAILS the job when the QA risk is high. It is strictly read-only: it never
+# comments on or writes to the PR - the gate is the job's exit code.
+name: culprit QA gate
+
+on: pull_request
+
+# Least privilege: culprit only reads the repo and PR metadata.
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  culprit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # full history so blame / git log -L work
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install culprit
+        run: pip install culprit
+
+      - name: Run RCA + QA gate
+        env:
+          GH_TOKEN: ${{ github.token }}   # read-only PR metadata via gh
+        run: >
+          rca --pr ${{ github.event.pull_request.number }}
+          --html culprit-report.html --no-save --fail-on high
+        # exits non-zero (failing the job) only when QA risk == high
+
+      - name: Upload report
+        if: always()                # keep the report even when the gate fails
+        uses: actions/upload-artifact@v4
+        with:
+          name: culprit-report
+          path: culprit-report.html

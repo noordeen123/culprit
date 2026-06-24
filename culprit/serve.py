@@ -21,6 +21,28 @@ from urllib.parse import parse_qs, urlparse
 
 from . import _proc, cli, config, htmlreport, reasoning
 
+# Credentials entered through the UI. Kept in this server process's memory ONLY -
+# never written to disk and never placed in a URL (they arrive via POST). The
+# GitHub token authenticates gh/REST; the Anthropic key powers the API narrative.
+_CREDS = {"github_token": "", "anthropic_key": ""}
+
+
+def _apply_creds() -> None:
+    """Expose the GitHub token to child gh/git/REST calls via the environment."""
+    if _CREDS["github_token"]:
+        os.environ["GH_TOKEN"] = _CREDS["github_token"]
+        os.environ["GITHUB_TOKEN"] = _CREDS["github_token"]
+
+
+def _creds_view():
+    """(status line, github placeholder, anthropic placeholder) - never echoes values."""
+    status = "GitHub: {} · Anthropic: {}".format(
+        "set" if _CREDS["github_token"] else "not set",
+        "set" if _CREDS["anthropic_key"] else "not set")
+    gh_ph = "saved - leave blank to keep" if _CREDS["github_token"] else "ghp_... or github_pat_..."
+    ak_ph = "saved - leave blank to keep" if _CREDS["anthropic_key"] else "sk-ant-..."
+    return status, gh_ph, ak_ph
+
 
 # -- base-branch discovery ----------------------------------------------------
 
@@ -78,6 +100,11 @@ _STYLE = """
   a{color:#6ea8fe;}
   .err{background:#241419;border:1px solid #f06a6a;border-radius:10px;padding:14px 16px;margin:20px 0;}
   code{background:#1d212b;padding:1px 6px;border-radius:4px;font-family:ui-monospace,Menlo,monospace;}
+  details.creds{margin-top:24px;border:1px solid #2a2f3a;border-radius:9px;padding:10px 14px;background:#171a21;}
+  details.creds summary{cursor:pointer;color:#9aa3b2;font-size:13px;}
+  details.creds[open] summary{color:#e6e9ef;margin-bottom:6px;}
+  details.creds button{margin-top:14px;}
+  .ok{color:#4cc38a;}
 """
 
 
@@ -106,7 +133,9 @@ _FORM_TPL = """<!DOCTYPE html><html><head><meta charset="utf-8">
     </div>
     <label>Base branch</label>
     <select name="base" id="base">__BASE_OPTS__</select>
-    <div class="hint">Default comes from <code>.culprit.toml</code> when set; otherwise the repo's default branch.</div>
+    <div class="hint"><b>auto</b> analyzes just your latest commit (one change); pick a branch
+      to compare your whole branch against it. Default is <code>.culprit.toml</code>/<code>CULPRIT_BASE</code>
+      or the repo's default branch.</div>
     <div class="row">
       <div><label>Classification</label>
         <select name="force">
@@ -122,6 +151,18 @@ _FORM_TPL = """<!DOCTYPE html><html><head><meta charset="utf-8">
     </div>
     <button type="submit">Run analysis &rarr;</button>
   </form>
+  <details class="creds"__CREDS_OPEN__>
+    <summary>Credentials (optional) &mdash; __CREDS_STATUS__</summary>
+    <form action="/config" method="post" autocomplete="off">
+      <label>GitHub token <span class="hint">(enables the PR field + private repos; same as <code>gh auth</code>)</span></label>
+      <input name="github_token" type="password" placeholder="__GH_PH__" autocomplete="off">
+      <label>Anthropic API key <span class="hint">(enables the "Claude API narrative" reasoning)</span></label>
+      <input name="anthropic_key" type="password" placeholder="__KEY_PH__" autocomplete="off">
+      <button type="submit">Save credentials</button>
+      <div class="hint">Stored in this server's memory only &mdash; never written to disk, never in a URL.
+        Leave a field blank to keep its current value.</div>
+    </form>
+  </details>__SAVED__
   <script>
     // Repopulate the base picker when the repo path changes.
     var repoEl=document.getElementById('repo'), baseEl=document.getElementById('base');
@@ -139,15 +180,23 @@ _FORM_TPL = """<!DOCTYPE html><html><head><meta charset="utf-8">
 </div></body></html>"""
 
 
-def form_page(repo: str) -> str:
+def form_page(repo: str, saved: bool = False) -> str:
     bases = candidate_bases(repo)
     cfg = config.repo_base(repo)
     base_opts = ('<option value="">auto &mdash; latest commit (HEAD~1)</option>'
                  + _opts(bases, cfg))
+    status, gh_ph, ak_ph = _creds_view()
+    saved_html = ('<div class="hint ok" style="margin-top:10px">&check; credentials saved.</div>'
+                  if saved else "")
     return (_FORM_TPL
             .replace("__STYLE__", _STYLE)
             .replace("__REPO__", html.escape(repo))
-            .replace("__BASE_OPTS__", base_opts))
+            .replace("__BASE_OPTS__", base_opts)
+            .replace("__CREDS_STATUS__", html.escape(status))
+            .replace("__GH_PH__", html.escape(gh_ph))
+            .replace("__KEY_PH__", html.escape(ak_ph))
+            .replace("__CREDS_OPEN__", " open" if saved else "")
+            .replace("__SAVED__", saved_html))
 
 
 def _error_page(msg: str) -> str:
@@ -183,7 +232,9 @@ def run_report(params: Dict[str, List[str]]) -> str:
     narrative = ""
     if mode == "api":
         try:
-            narrative = reasoning.get_adapter(mode="api").explain(result)
+            # Prefer a key entered in the UI; otherwise fall back to the environment.
+            adapter = reasoning.ClaudeAPIAdapter(api_key=_CREDS["anthropic_key"] or None)
+            narrative = adapter.explain(result)
         except Exception as exc:  # missing key / SDK - degrade gracefully
             narrative = "_(API narrative unavailable: {})_".format(exc)
 
@@ -203,12 +254,34 @@ def make_handler(default_repo: str):
             self.end_headers()
             self.wfile.write(data)
 
+        def do_POST(self):
+            u = urlparse(self.path)
+            try:
+                if u.path == "/config":
+                    length = int(self.headers.get("Content-Length", 0) or 0)
+                    body = self.rfile.read(length).decode("utf-8") if length else ""
+                    fields = parse_qs(body)
+                    gh = (fields.get("github_token", [""])[0] or "").strip()
+                    ak = (fields.get("anthropic_key", [""])[0] or "").strip()
+                    if gh:
+                        _CREDS["github_token"] = gh
+                    if ak:
+                        _CREDS["anthropic_key"] = ak
+                    _apply_creds()
+                    self.send_response(303)            # redirect back to the form
+                    self.send_header("Location", "/?saved=1")
+                    self.end_headers()
+                else:
+                    self._send(_error_page("Not found: " + u.path), status=404)
+            except Exception as exc:
+                self._send(_error_page("{}: {}".format(type(exc).__name__, exc)), status=500)
+
         def do_GET(self):
             u = urlparse(self.path)
             params = parse_qs(u.query)
             try:
                 if u.path == "/":
-                    self._send(form_page(default_repo))
+                    self._send(form_page(default_repo, saved="saved" in params))
                 elif u.path == "/api/bases":
                     repo = os.path.abspath(os.path.expanduser((params.get("repo", ["."])[0]) or "."))
                     bases = candidate_bases(repo)
