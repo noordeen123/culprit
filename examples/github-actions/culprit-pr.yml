@@ -7,6 +7,11 @@ name: culprit QA gate
 
 on: pull_request
 
+# Least privilege: culprit only reads the repo and PR metadata.
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
   culprit:
     runs-on: ubuntu-latest

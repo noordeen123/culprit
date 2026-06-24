@@ -78,14 +78,15 @@ def analyze(repo: str, pr: Optional[int], base: str, head: Optional[str],
     return _run(ctx, repo, force, coverage_path)
 
 
-def analyze_trace(repo: str, text: str, head: Optional[str] = None) -> Dict[str, Any]:
+def analyze_trace(repo: str, text: str, head: Optional[str] = None,
+                  coverage_path: Optional[str] = None) -> Dict[str, Any]:
     """RCA from a stack trace: parse frames, resolve to repo files, run the pipeline."""
     frames = trace.parse(text)
     resolved, skipped = trace.resolve_files(repo, frames)
     if not resolved:
         raise SystemExit("culprit: no stack frames resolved to files tracked in this repo.")
     ctx = pr_context.from_trace(repo, resolved, head=head)
-    result = _run(ctx, repo, force="bugfix")
+    result = _run(ctx, repo, force="bugfix", coverage_path=coverage_path)
     result["trace"] = {"frames": resolved, "skipped": [f["file"] for f in skipped]}
     return result
 
@@ -170,7 +171,7 @@ def main(argv: Optional[list] = None) -> int:
     if args.trace:
         text = (sys.stdin.read() if args.trace == "-"
                 else open(os.path.expanduser(args.trace), encoding="utf-8").read())
-        result = analyze_trace(repo, text, head=args.head)
+        result = analyze_trace(repo, text, head=args.head, coverage_path=args.coverage)
         tr = result.get("trace") or {}
         sys.stderr.write("trace: {} frame(s) resolved, {} skipped\n".format(
             len(tr.get("frames", [])), len(tr.get("skipped", []))))

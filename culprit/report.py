@@ -189,6 +189,11 @@ def markdown_skeleton(result: Dict[str, Any]) -> str:
         lines.append("## Uncovered changed lines")
         for f, lns in list(cov["uncovered"].items())[:20]:
             lines.append("- {}: {}".format(f, ", ".join(str(n) for n in lns[:15])))
+    for note in cov.get("notes", []):
+        # Surface parse/path-mismatch warnings so a broken --coverage isn't silent.
+        if lines and lines[-1] != "":
+            lines.append("")
+        lines.append("> {}".format(note))
 
     co = result.get("coupling") or {}
     if co.get("missed"):

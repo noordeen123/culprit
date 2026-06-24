@@ -71,3 +71,20 @@ def test_rca_from_trace_blames_the_crashing_line(crash_repo):
 def test_unresolved_trace_raises(crash_repo):
     with pytest.raises(SystemExit):
         cli.analyze_trace(crash_repo, 'File "nonexistent_xyz.py", line 9, in foo\n')
+
+
+def test_resolve_preserves_leading_dot_dir(tmp_path):
+    # A file under a dot-directory must resolve: the old lstrip("./") wrongly ate the
+    # leading dot (".scripts/run.py" -> "scripts/run.py") and failed to match.
+    d = str(tmp_path)
+    _git(d, "init", "-b", "main")
+    _git(d, "config", "user.email", "t@t.test")
+    _git(d, "config", "user.name", "Tester")
+    os.makedirs(os.path.join(d, ".scripts"))
+    with open(os.path.join(d, ".scripts", "run.py"), "w") as fh:
+        fh.write("x = 1\n")
+    _git(d, "add", "-A")
+    _git(d, "commit", "-m", "init")
+    resolved, skipped = trace.resolve_files(
+        d, [{"file": ".scripts/run.py", "line": 1, "func": "f", "lang": "python"}])
+    assert resolved and resolved[0]["file"] == ".scripts/run.py"

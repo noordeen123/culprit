@@ -16,7 +16,7 @@ Three principles hold everywhere:
 
 ## Data flow
 
-```
+```text
   PR / branch ---.
   stack trace ---+--> pr_context  -->  ctx  -->  classify  -->  (bugfix | feature) path
                                         |                              |
@@ -40,6 +40,7 @@ The `result` (the structured output) is `ctx`-derived plus: `classification`, `b
 ## Module map
 
 ### Plumbing
+
 | Module | Job |
 |---|---|
 | `_proc.py` | Read-only `git` / `gh` subprocess helpers (the only place processes are spawned). |
@@ -47,11 +48,13 @@ The `result` (the structured output) is `ctx`-derived plus: `classification`, `b
 | `pr_context.py` | Resolve a PR/branch into `ctx`: `gh` -> GitHub/GitLab REST -> local git. Host detection + deep-link templates. `pr_meta` (arbitrary PR), `from_trace` (frames -> synthetic diff). |
 
 ### Classification
+
 | Module | Job |
 |---|---|
 | `classify.py` | Score branch prefix, labels, title, and commit subjects -> bugfix / feature / unknown, with evidence. |
 
 ### Bugfix path
+
 | Module | Job |
 |---|---|
 | `suspect.py` | Parse the fix's hunks; `git blame` the removed lines at the base -> ranked **suspect set**. |
@@ -62,11 +65,13 @@ The `result` (the structured output) is `ctx`-derived plus: `classification`, `b
 | `bisect.py` | Optional: a real `git bisect` in a throwaway worktree to *confirm* the blamed suspect. |
 
 ### Feature path
+
 | Module | Job |
 |---|---|
 | `blast_radius.py` | Reverse-import map (who imports the changed modules), covering tests, high-risk shared/core modules, and `test_gap`. |
 
 ### QA layer (any path)
+
 | Module | Job |
 |---|---|
 | `risk.py` | Combine the signals above into one explainable 0-100 **QA risk score** (the CI gate input). |
@@ -76,11 +81,13 @@ The `result` (the structured output) is `ctx`-derived plus: `classification`, `b
 | `owners.py` | Suggest **reviewers** from `CODEOWNERS` + git authorship. |
 
 ### Symptom input
+
 | Module | Job |
 |---|---|
 | `trace.py` | Parse Python / JS / Java / Go **stack traces** and resolve frames to repo files (RCA from a crash, no fix needed). |
 
 ### Reasoning, assembly, output
+
 | Module | Job |
 |---|---|
 | `reasoning.py` | The only LLM step, behind `ReasoningAdapter`: `HarnessAdapter` (Claude Code writes it) or `ClaudeAPIAdapter`. |

@@ -57,7 +57,7 @@ Everything runs off **one normalized context** (`ctx`) and produces **one struct
 result** (JSON). Each step is a small, deterministic module that reads git and writes a
 slice of that result; the only optional, non-deterministic step is the LLM narrative.
 
-```
+```text
   PR / branch ---.
   stack trace ---+--> pr_context  -->  ctx  (diff, changed files, commits, host links)
                           |

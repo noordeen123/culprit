@@ -44,6 +44,10 @@ def _parse_lcov(text: str) -> Dict[str, Dict[str, Set[int]]]:
 
 def _parse_cobertura(text: str) -> Dict[str, Dict[str, Set[int]]]:
     cov: Dict[str, Dict[str, Set[int]]] = {}
+    # Refuse DTDs / entity declarations (billion-laughs / external-entity attacks)
+    # before handing the document to ElementTree. No external dependency needed.
+    if "<!DOCTYPE" in text or "<!ENTITY" in text:
+        raise ValueError("refusing to parse XML with a DTD or entity declaration")
     root = ET.fromstring(text)
     for cls in root.iter("class"):
         fn = cls.get("filename")

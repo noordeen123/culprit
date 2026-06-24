@@ -40,11 +40,12 @@ def cochange(repo: str, changed_files: List[str], max_commits: int = 500,
     file_count: Counter = Counter()
     pair: Dict[str, Counter] = defaultdict(Counter)
     for cs in commits:
-        for f in cs:
-            file_count[f] += 1
         # Skip sweeping commits (big refactors/formatting) - they couple everything.
+        # Count file_count on the SAME sample as pairs, so confidence isn't deflated.
         if len(cs) > max_commit_size:
             continue
+        for f in cs:
+            file_count[f] += 1
         files = list(cs)
         for f in files:
             for g in files:

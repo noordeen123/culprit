@@ -134,7 +134,8 @@ _FORM_TPL = """<!DOCTYPE html><html><head><meta charset="utf-8">
     <label>Base branch</label>
     <select name="base" id="base">__BASE_OPTS__</select>
     <div class="hint"><b>auto</b> analyzes just your latest commit (one change); pick a branch
-      to compare your whole branch against it. Default is <code>.culprit.toml</code> or the repo's default branch.</div>
+      to compare your whole branch against it. Default is <code>.culprit.toml</code>/<code>CULPRIT_BASE</code>
+      or the repo's default branch.</div>
     <div class="row">
       <div><label>Classification</label>
         <select name="force">

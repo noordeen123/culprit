@@ -13,7 +13,8 @@ from typing import Any, Dict, List, Optional
 
 from . import _proc
 
-_CODEOWNERS_PATHS = ("CODEOWNERS", ".github/CODEOWNERS", "docs/CODEOWNERS")
+# GitHub's lookup order: the first file found wins (.github/ -> root -> docs/).
+_CODEOWNERS_PATHS = (".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS")
 
 
 def _load_rules(repo: str) -> List[tuple]:

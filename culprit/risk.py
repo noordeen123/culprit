@@ -53,7 +53,9 @@ def score(result: Dict[str, Any]) -> Dict[str, Any]:
     # the import heuristic, so we don't double-count the two.
     cov = result.get("coverage") or {}
     cp = bugfix.get("completeness") or {}
-    if cov:
+    # Only trust coverage as ground truth when it actually matched changed files;
+    # a parse/path-mismatch failure must fall back to the heuristic, not lower risk.
+    if cov and (cov.get("checked_files") or 0) > 0:
         unc = cov.get("files_with_uncovered") or 0
         if unc:
             add("uncovered changes", min(30, 8 * unc),

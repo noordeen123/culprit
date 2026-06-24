@@ -58,7 +58,9 @@ def resolve_files(repo: str, frames: List[Dict[str, Any]]) -> Tuple[List[Dict[st
     resolved: List[Dict[str, Any]] = []
     skipped: List[Dict[str, Any]] = []
     for fr in frames:
-        p = fr["file"].replace("\\", "/").lstrip("./")
+        p = fr["file"].replace("\\", "/")
+        while p.startswith("./"):           # strip leading ./ but preserve ../
+            p = p[2:]
         cand = [t for t in tracked if p == t or p.endswith("/" + t)]
         if cand:
             match = max(cand, key=len)            # most specific suffix

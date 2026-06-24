@@ -51,6 +51,21 @@ def test_feature_blast_radius_contributes():
     assert r["score"] > 0
 
 
+def test_unmatched_coverage_does_not_suppress_test_gap():
+    # A coverage report that matched nothing (checked_files == 0) must NOT be treated
+    # as ground truth - the heuristic test-gap has to still apply (gate safety).
+    result = {
+        "target": {"changed_files": ["a.py"]},
+        "bugfix": {"test_gap": {"untested": ["a.py"]}, "completeness": {}},
+        "feature": None,
+        "coverage": {"uncovered": {}, "files_with_uncovered": 0, "checked_files": 0,
+                     "notes": ["path mismatch"]},
+    }
+    names = {f["name"] for f in risk.score(result)["factors"]}
+    assert "test gap" in names
+    assert "uncovered changes" not in names
+
+
 def test_no_signals_scores_zero():
     r = risk.score({"target": {"changed_files": []}, "bugfix": None, "feature": None})
     assert r["score"] == 0 and r["level"] == "low" and r["factors"] == []
