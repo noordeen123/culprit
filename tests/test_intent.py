@@ -8,9 +8,7 @@ from culprit import intent
 from culprit.intent import _linked_issues
 
 
-def _git(repo, *args):
-    subprocess.run(["git", "-C", repo, *args], check=True,
-                   stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+from githelper import git as _git
 
 
 @pytest.fixture()

@@ -1,5 +1,4 @@
 import os
-import subprocess
 import tempfile
 
 import pytest
@@ -7,10 +6,7 @@ import pytest
 from culprit import cli, trace
 
 
-def _git(repo, *args, **kw):
-    env = dict(os.environ, **kw.get("env", {}))
-    subprocess.run(["git", "-C", repo, *args], check=True, env=env,
-                   stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+from githelper import git as _git
 
 
 def test_parse_handles_multiple_languages():
@@ -52,9 +48,9 @@ def crash_repo():
 
 def test_resolve_files_matches_basename(crash_repo):
     frames = [{"file": "calc.py", "line": 2, "func": "area", "lang": "python"}]
-    resolved, skipped = trace.resolve_files(crash_repo, frames)
+    resolved, _skipped = trace.resolve_files(crash_repo, frames)
     assert resolved and resolved[0]["file"] == "calc.py"
-    assert not skipped
+    assert not _skipped
 
 
 def test_rca_from_trace_blames_the_crashing_line(crash_repo):
@@ -85,6 +81,6 @@ def test_resolve_preserves_leading_dot_dir(tmp_path):
         fh.write("x = 1\n")
     _git(d, "add", "-A")
     _git(d, "commit", "-m", "init")
-    resolved, skipped = trace.resolve_files(
+    resolved, _skipped = trace.resolve_files(
         d, [{"file": ".scripts/run.py", "line": 1, "func": "f", "lang": "python"}])
     assert resolved and resolved[0]["file"] == ".scripts/run.py"

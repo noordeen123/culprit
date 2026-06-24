@@ -1,5 +1,4 @@
 import os
-import subprocess
 import tempfile
 
 import pytest
@@ -7,10 +6,7 @@ import pytest
 from culprit import owners
 
 
-def _git(repo, *args, **kw):
-    env = dict(os.environ, **kw.get("env", {}))
-    subprocess.run(["git", "-C", repo, *args], check=True, env=env,
-                   stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+from githelper import git as _git
 
 
 @pytest.fixture()
