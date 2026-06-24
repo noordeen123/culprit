@@ -251,11 +251,16 @@ rca serve --repo /path/to/repo     # opens http://127.0.0.1:8722
 ```
 
 It launches a local web app (stdlib only - no extra deps) with a form: enter a
-PR/branch, **pick the base from a dropdown** (pre-filled from `.culprit.toml`,
-the repo's default branch, then all local/remote branches), choose
-classification + reasoning, and run a fresh analysis that renders the same visual
-report. The base picker repopulates when you point it at a different repo. Binds
-to localhost only.
+PR/branch, **pick the base from a dropdown** (`auto` = just your latest commit, or
+any local/remote branch to diff your whole branch against), choose classification +
+reasoning, and run a fresh analysis that renders the same visual report. The base
+picker repopulates when you point it at a different repo.
+
+Optional **Credentials** (a collapsible section on the form) let you paste a **GitHub
+token** (enables the PR field / private repos, like `gh auth`) and an **Anthropic API
+key** (enables the "Claude API narrative" reasoning). They're kept in the server
+process's memory only - never written to disk, never put in a URL (submitted via POST).
+Binds to localhost only.
 
 ### Base branch
 

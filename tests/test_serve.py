@@ -56,3 +56,24 @@ def test_run_report_produces_html(repo_with_branches):
     assert html.startswith("<!DOCTYPE html>")
     assert "New analysis" in html          # back-link injected
     assert "How it broke" in html          # timeline rendered
+
+
+def test_form_page_has_credentials_section(repo_with_branches):
+    html = serve.form_page(repo_with_branches)
+    assert 'name="github_token"' in html and 'name="anthropic_key"' in html
+    assert "Credentials (optional)" in html
+    assert 'type="password"' in html       # keys are never plain-text inputs
+
+
+def test_creds_view_reflects_state_without_echoing_values():
+    serve._CREDS["github_token"] = ""
+    serve._CREDS["anthropic_key"] = ""
+    status, gh_ph, ak_ph = serve._creds_view()
+    assert "GitHub: not set" in status and "Anthropic: not set" in status
+    try:
+        serve._CREDS["github_token"] = "ghp_secretvalue"
+        status, gh_ph, _ = serve._creds_view()
+        assert "GitHub: set" in status
+        assert "ghp_secretvalue" not in (status + gh_ph)   # value never surfaced
+    finally:
+        serve._CREDS["github_token"] = ""        # don't leak into other tests
