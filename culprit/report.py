@@ -70,6 +70,12 @@ def markdown_skeleton(result: Dict[str, Any]) -> str:
 
         # --- Introduced: what the author was trying to do when the bug went in ---
         lines.append("## Introduced")
+        if b.get("origin_on_branch") and prime:
+            lines.append("> **When it broke: not determined from this base.** The blamed commit "
+                         "`{}` is on the current branch (part of this change), not the bug's origin. "
+                         "Re-run against your target branch (`--base {}`) to trace it.".format(
+                             prime["short"], b.get("trunk")))
+            lines.append("")
         if prime:
             intent = prime.get("intent") or {}
             pr = intent.get("pr") or {}
@@ -92,14 +98,17 @@ def markdown_skeleton(result: Dict[str, Any]) -> str:
         else:
             lines.append("_No suspect found (base may not be fetched locally)._")
         for note in b.get("notes", []):
+            if "current branch" in note:
+                continue  # already shown prominently above
             lines.append("> {}".format(note))
         lines.append("")
 
         # --- Lived: how long it survived and how far it spread ---
         lines.append("## Lived")
         if lc.get("releases"):
+            count = lc.get("total_releases") or len(lc["releases"])
             lines.append("- Shipped in {} release(s): {}{}".format(
-                len(lc["releases"]), ", ".join(lc["releases"]),
+                count, ", ".join(lc["releases"]),
                 " (+more)" if lc.get("releases_truncated") else ""))
         if lc.get("commits_span"):
             lines.append("- {} commit(s) passed before the fix.".format(lc["commits_span"]))

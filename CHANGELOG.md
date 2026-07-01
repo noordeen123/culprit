@@ -8,6 +8,16 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Self-suspect guard.** Suspects are checked against the target branch
+  (`merge-base --is-ancestor`): each carries `in_base`, and `bugfix.origin_on_branch`
+  flags when the prime suspect is a commit on the current branch (part of the change
+  being analyzed) rather than the bug's true origin. The report Summary, markdown, and
+  a stderr note say so and point at `--base <trunk>` instead of naming a false origin.
+- **Report Summary + collapsible timeline.** The HTML report opens with a pinned
+  Summary (verdict, when-it-broke, risk, do-next) and collapses earlier line-evolution
+  history by default, so a small change no longer renders a wall of steps.
+- **Claude Code skill template** at `examples/claude-code-skill/SKILL.md` - run the
+  deterministic engine and let an agent write the narrative (no API key).
 - **QA risk score + CI gate.** Every report now carries a single explainable risk
   score (0-100, low/medium/high) combining test gap, fix completeness, hotspot
   recurrence, blast radius, and churn. `--fail-on {low,medium,high}` exits non-zero

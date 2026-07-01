@@ -48,6 +48,12 @@
   .risk .sc { font-size:17px; font-weight:700; text-transform:uppercase; }
   .risk ul { margin:8px 0 0; padding-left:18px; }
   .risk li { color:var(--muted); font-size:12.5px; }
+  .summary { background:var(--panel2); border:1px solid var(--accent); border-radius:10px; padding:12px 16px; margin:0 0 16px; }
+  .summary-h { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--accent); margin-bottom:6px; }
+  .summary-row { font-size:13.5px; margin:4px 0; color:var(--txt); }
+  .tl-more { color:var(--accent); font-size:12px; cursor:pointer; margin:2px 0 14px 8px; display:inline-block; }
+  .tl-more:hover { text-decoration:underline; }
+  .timeline.collapsed .step.tl-early { display:none; }
   section { margin:26px 0; }
   h2 { font-size:15px; margin:0 0 12px; font-weight:650; color:var(--txt); }
   .muted { color:var(--muted); }
@@ -275,7 +281,7 @@
       var age=humanAge(p.date, t.head_date);
       if(age) L.push('Introduced ~'+age+' before this fix.');
       var lc=D.bugfix.lifecycle||{};
-      if((lc.releases||[]).length) L.push('Shipped in '+lc.releases.length+' release(s): '+lc.releases.join(', ')+'.');
+      if((lc.releases||[]).length){var rcnt=lc.total_releases||lc.releases.length; L.push('Shipped in '+rcnt+' release(s): '+lc.releases.join(', ')+(lc.releases_truncated?' (+more)':'')+'.');}
       if(lc.recurrence && lc.recurrence.is_hotspot) L.push('Hotspot: '+lc.recurrence.fix_count+' prior fixes to this file.');
       var it=p.intent;
       if(it){
@@ -335,6 +341,47 @@
   hd.appendChild(copyBtn);
   app.appendChild(hd);
 
+  // ---- Summary (the gist, always pinned at the top) ----
+  (function(){
+    var b = D.bugfix || {}, rows = [];
+    var files = (t.changed_files||[]).length;
+    rows.push('<b>What:</b> '+esc(c.verdict||'change')+' touching <b>'+esc(files)+'</b> file'+(files!==1?'s':'')+
+      (files===1 ? (' (<code>'+esc(basename(t.changed_files[0]))+'</code>)') : ''));
+    if((b.suspects||[]).length){
+      var s = b.suspects[0];
+      // Check for multi-cluster contamination note from the engine.
+      var clusterNote = (b.notes||[]).find(function(n){ return n.indexOf('distinct subsystem')!==-1; });
+      if(b.origin_on_branch){
+        rows.push('<b>When it broke:</b> <span class="hot">not in your base</span> - the blamed commit '+
+          linkHash(s.short, s.hash)+' is on this branch (part of your change), not the bug\'s origin. '+
+          'Re-run against your target branch'+(b.trunk?(' (<code>--base '+esc(b.trunk)+'</code>)'):'')+' to trace the origin.');
+      } else if(clusterNote){
+        rows.push('<b>When it broke:</b> <span class="hot">⚠ multi-change branch</span> - '+linkHash(s.short, s.hash)+
+          ' is the prime suspect but the diff spans multiple unrelated subsystems; this may be a false positive. '+
+          'Run <code>--last</code> on individual commits for a reliable analysis.');
+      } else {
+        rows.push('<b>When it broke:</b> '+linkHash(s.short, s.hash)+linkPR(s.pr_number)+' '+esc(s.subject||'')+
+          ' <span class="muted">('+esc(s.author||'')+', '+shortDate(s.date)+')</span>');
+      }
+    }
+    if(D.risk){
+      rows.push('<b>Risk:</b> '+esc(D.risk.level)+' ('+esc(D.risk.score)+'/100)'+
+        ((D.risk.factors||[]).length ? (' - '+D.risk.factors.map(function(f){return esc(f.name);}).join(', ')) : ''));
+    }
+    var actions = [];
+    var miss = (D.coupling||{}).missed || [];
+    if(miss.length) actions.push('check '+miss.slice(0,3).map(function(m){return '<code>'+esc(basename(m.file))+'</code>';}).join(', ')+
+      ' (usually changes with this file)');
+    var cp = b.completeness || {}, tg = b.test_gap || {};
+    if((tg.untested||[]).length || cp.adds_test===false) actions.push('add a test');
+    if(cp.untouched_count) actions.push(cp.untouched_count+' other reference(s) to the changed symbol(s) left untouched');
+    if(actions.length) rows.push('<b>Do next:</b> '+actions.join('; '));
+    var box = el('<div class="summary"></div>');
+    box.innerHTML = '<div class="summary-h">Summary</div>'+
+      rows.map(function(r){ return '<div class="summary-row">'+r+'</div>'; }).join('');
+    app.appendChild(box);
+  })();
+
   // ---- QA risk banner ----
   if(D.risk){
     var rk=D.risk, rb=el('<div class="risk '+esc(rk.level)+'"></div>');
@@ -354,14 +401,17 @@
     var lc=D.bugfix.lifecycle||{};
     var lived=[];
     if((lc.releases||[]).length){
-      var rel=lc.releases.slice(0,6).map(esc).join(', ')+((lc.releases.length>6||lc.releases_truncated)?', …':'');
-      lived.push('shipped in <b class="rel">'+esc(lc.releases.length)+'</b> release'+(lc.releases.length>1?'s':'')+' ('+rel+')');
+      var rcnt=lc.total_releases||lc.releases.length;
+      var rel=lc.releases.slice(0,6).map(esc).join(', ')+((lc.releases_truncated||lc.releases.length>6)?', …':'');
+      lived.push('shipped in <b class="rel">'+esc(rcnt)+'</b> release'+(rcnt>1?'s':'')+' ('+rel+')');
     }
     if(lc.commits_span) lived.push('<b class="rel">'+esc(lc.commits_span)+'</b> commits before the fix');
     if(lc.authors_span) lived.push(esc(lc.authors_span)+' author'+(lc.authors_span>1?'s':'')+' touched it since');
     if(lc.recurrence && lc.recurrence.is_hotspot) lived.push('<span class="hot">hotspot</span>: '+esc(lc.recurrence.fix_count)+' prior fixes to this file');
-    var b = el('<div class="banner"></div>');
+    var bannerClusterNote = (D.bugfix.notes||[]).find(function(n){ return n.indexOf('distinct subsystem')!==-1; });
+    var b = el('<div class="banner"'+(bannerClusterNote?' style="border-color:var(--hot)"':'')+' ></div>');
     b.innerHTML = '<span class="lead">⚠ prime suspect</span>'+
+      (bannerClusterNote ? '<span class="hot" style="margin-left:8px;font-size:.8em"> multi-change branch — may be a false positive</span>' : '')+
       linkHash(p0.short, p0.hash)+linkPR(p0.pr_number)+' - '+esc(p0.subject||'')+
       ' <span class="muted">('+esc(p0.author||'')+')</span>'+
       (age ? '<br><span class="muted">Introduced ~<b style="color:var(--txt)">'+esc(age)+
@@ -539,8 +589,16 @@
       var seen={};
       tl.ranges.forEach(function(r){ if(!seen[r.file]){ seen[r.file]=1;
         var o=document.createElement('option'); o.value=r.file; o.textContent=r.file; sel.appendChild(o); } });
-      bExp.addEventListener('click', function(){ tlsec.querySelectorAll('.step').forEach(function(s){s.classList.add('open');}); });
-      bCol.addEventListener('click', function(){ tlsec.querySelectorAll('.step').forEach(function(s){s.classList.remove('open');}); });
+      bExp.addEventListener('click', function(){
+        tlsec.querySelectorAll('.step').forEach(function(s){s.classList.add('open');});
+        tlsec.querySelectorAll('.timeline').forEach(function(t){t.classList.remove('collapsed');});
+        tlsec.querySelectorAll('.tl-more').forEach(function(m){m.textContent=m.textContent.replace('▸ show','▾ hide');});
+      });
+      bCol.addEventListener('click', function(){
+        tlsec.querySelectorAll('.step').forEach(function(s){s.classList.remove('open');});
+        tlsec.querySelectorAll('.timeline').forEach(function(t){t.classList.add('collapsed');});
+        tlsec.querySelectorAll('.tl-more').forEach(function(m){m.textContent=m.textContent.replace('▾ hide','▸ show');});
+      });
       sel.addEventListener('change', function(){
         var v=sel.value;
         tlsec.querySelectorAll('.tl-group').forEach(function(g){
@@ -558,11 +616,14 @@
       grp.appendChild(el('<div class="tl-file">'+chipFile(r.file)+
         ' <span class="rng">· lines '+esc(r.range[0])+'-'+esc(r.range[1])+
         (r.truncated?' (truncated)':'')+'</span></div>'));
-      var tldiv = el('<div class="timeline"></div>');
+      var tldiv = el('<div class="timeline collapsed"></div>');
       var bisectBad = (b.bisect && b.bisect.first_bad) ? b.bisect.first_bad.hash : null;
+      var earlyCount = 0;
       (r.steps||[]).forEach(function(s){
         var role = s.role||'modified';
-        var step = el('<div class="step '+role+'"></div>');
+        var early = (role!=='suspect' && role!=='fix');   // origin / modified = earlier history
+        if(early) earlyCount++;
+        var step = el('<div class="step '+role+(early?' tl-early':'')+'"></div>');
         var ff = (bisectBad && s.hash===bisectBad) ? '<span class="firstfail">⌖ first failing</span>' : '';
         step.innerHTML =
           '<span class="dot '+role+'"></span>'+
@@ -582,7 +643,18 @@
         if(role==='suspect'||role==='fix') step.classList.add('open');
         tldiv.appendChild(step);
       });
-      grp.appendChild(tldiv);
+      // Collapse the earlier history by default; one toggle per range.
+      if(earlyCount){
+        var tog = el('<span class="tl-more">▸ show '+earlyCount+' earlier commit'+(earlyCount>1?'s':'')+'</span>');
+        tog.addEventListener('click', function(){
+          var collapsed = tldiv.classList.toggle('collapsed');
+          tog.textContent = (collapsed?'▸ show ':'▾ hide ')+earlyCount+' earlier commit'+(earlyCount>1?'s':'');
+        });
+        grp.appendChild(tldiv);
+        grp.appendChild(tog);
+      } else {
+        grp.appendChild(tldiv);
+      }
       tlsec.appendChild(grp);
     });
     app.appendChild(tlsec);
