@@ -217,15 +217,9 @@ your client's docs for the exact file location):
 }
 ```
 
-Restart the client after adding. Example locations:
-
-| Client | Config file |
-|---|---|
-| Claude Code | `~/.claude.json` |
-| Cursor | `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (global) |
-| Windsurf | `~/.codeium/windsurf/mcp_config.json` |
-| VS Code (Copilot) | `.vscode/mcp.json` in the workspace |
-| Codex CLI | `~/.codex/config.json` |
+Restart the client after adding. For Claude Code the file is `~/.claude.json`; for
+other clients check their MCP documentation for the exact config file location — the
+`mcpServers` key format is standard across the ecosystem.
 
 All 11 culprit tools then appear natively — no CLI round-trip, no ANTHROPIC_API_KEY needed for the
 deterministic analysis:
