@@ -1,9 +1,8 @@
 """The bug's lifespan: which releases shipped it, how far it spread, recurrence.
 
-Turns the prime suspect into a sense of blast *over time*: the released versions
-that carried the bug (``git tag --contains``), how many commits/authors passed
-between introduction and fix, and whether this file is a repeat offender (a
-hotspot that keeps getting bug-fixed). All read-only git queries.
+Queries ``git tag --contains`` to find released versions that carried the bug,
+counts commits/authors between introduction and fix, and checks whether the file
+has a history of repeated bug-fix commits (hotspot detection). All read-only.
 """
 from __future__ import annotations
 

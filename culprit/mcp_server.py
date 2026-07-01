@@ -1,9 +1,9 @@
 """culprit MCP server: expose the RCA engine as native tool calls.
 
 Install:  pip install culprit[mcp]
-Run:      culprit-mcp          (stdio transport — for Claude Code, Cursor, Windsurf)
+Run:      culprit-mcp          (stdio transport — works with any MCP-compatible client)
 
-Add to ~/.claude.json (Claude Code) or mcp_config.json (Cursor):
+Add to your client's MCP config (Claude Code, Cursor, Windsurf, VS Code, Codex CLI, …):
     {
       "mcpServers": {
         "culprit": { "command": "culprit-mcp" }
@@ -13,7 +13,7 @@ Add to ~/.claude.json (Claude Code) or mcp_config.json (Cursor):
 Tools are in two tiers:
   Coarse  — analyze, classify_change, find_suspects, get_blast_radius, get_risk_score
   Fine    — get_evolution, get_intent, check_completeness, get_test_impact, from_trace
-  Verify  — verify_fix  (check a proposed diff BEFORE committing)
+  Verify  — verify_fix  (check completeness of a proposed diff pre-commit)
 """
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ mcp = FastMCP(
         "  3. get_evolution()     — line-by-line history of the exact buggy lines\n"
         "  4. get_intent()        — what the author was trying to do in the suspect commit\n"
         "  5. check_completeness()— are there other call sites the fix missed?\n"
-        "  6. verify_fix()        — pass your proposed diff BEFORE committing; iterate until verdict='complete'\n"
+        "  6. verify_fix()        — check proposed diff pre-commit; iterate until verdict='complete'\n"
         "  7. get_risk_score()    — QA gate score (use with --fail-on in CI)\n\n"
         "For a stack trace with no fix in hand, start with from_trace() instead of analyze(). "
         "All tools are read-only — they never modify the repo or create commits."
@@ -65,10 +65,9 @@ def _resolve(repo: str, base: Optional[str] = None, head: Optional[str] = None,
 
 @mcp.tool()
 def analyze(repo: str, base: str = None, head: str = None, pr: int = None) -> dict:
-    """Full RCA analysis in one call: classify, find suspects or blast radius, risk, test impact.
+    """Full RCA in one call: classify → suspects (bugfix) or blast-radius (feature) → risk score → test impact.
 
-    Returns the complete structured result JSON. Use for a quick overview; use the
-    individual tools for iterative investigation.
+    Returns the complete structured result. Use the individual tools to drill into specific signals.
     """
     repo = os.path.abspath(repo)
     return cli_analyze(repo, pr=pr, base=base or config.repo_base(repo), head=head)
@@ -136,10 +135,7 @@ def get_risk_score(repo: str, base: str = None, head: str = None, pr: int = None
 @mcp.tool()
 def get_evolution(repo: str, file: str, start_line: int, end_line: int,
                   base: str = None) -> dict:
-    """How a specific range of lines in a file evolved across commits.
-
-    Shows each commit that touched those lines from creation to present,
-    with the per-step diff. Useful for understanding exactly how a bug crept in.
+    """``git log -L`` over a line range: every commit that touched those lines, oldest to newest, with per-step diffs.
 
     Returns: {steps: [{hash, short, author, date, subject, diff}], notes: [...]}
     """
@@ -154,10 +150,7 @@ def get_evolution(repo: str, file: str, start_line: int, end_line: int,
 
 @mcp.tool()
 def get_intent(repo: str, commit_hash: str) -> dict:
-    """What the author was trying to do when they made a specific commit.
-
-    Returns the commit body, the PR it came from (title, body, url), and any
-    linked issues (e.g. "Fixes #42"). Useful for understanding WHY a bug was introduced.
+    """Commit body + the PR it came from (title, body, url) + linked issues (Fixes/Closes/Resolves #N).
 
     Returns: {body: str, pr: {number, title, body, url} | null, linked_issues: [...]}
     """
@@ -216,18 +209,10 @@ def from_trace(repo: str, trace_text: str, head: str = None) -> dict:
 
 @mcp.tool()
 def verify_fix(repo: str, proposed_diff: str, base: str = None) -> dict:
-    """Check if a proposed fix is complete BEFORE committing.
+    """Check fix completeness against a raw unified diff before committing.
 
-    Pass the proposed change as a raw unified diff string. Returns whether the fix
-    is complete, which other call sites it missed, and which tests to run to validate it.
-
-    Recommended agent workflow:
-        find_suspects  →  understand root cause
-        (agent proposes fix)
-        verify_fix     →  "partial": 2 untouched references found
-        (agent patches those references)
-        verify_fix     →  "complete"
-        (agent commits)
+    Runs completeness + test-impact analysis on the proposed diff and returns a verdict.
+    Iterate until verdict == "complete" before committing.
 
     Returns: {verdict: "complete"|"partial"|"risky", symbols_fixed: [...],
               untouched_references: [...], tests_to_run: [...], adds_test: bool,

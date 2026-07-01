@@ -1,9 +1,8 @@
 """Fix verification: check if a proposed diff fully addresses the root cause.
 
-Called by the AI agent BEFORE committing. The agent passes its proposed change
-as a raw unified diff; this module checks completeness (other untouched call
-sites), test coverage, and risk level, returning a verdict so the agent can
-iterate before touching git.
+Takes a not-yet-committed unified diff and checks completeness (other untouched call
+sites), test coverage, and risk level, returning a verdict so the caller can iterate
+before committing.
 """
 from __future__ import annotations
 
