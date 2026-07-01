@@ -223,7 +223,7 @@ def from_pr(repo: str, pr: Optional[int] = None) -> Dict[str, Any]:
         "pr_number": meta.get("number"),
         "title": meta.get("title"),
         "body": meta.get("body"),
-        "labels": [l.get("name") for l in meta.get("labels", []) if l.get("name")],
+        "labels": [lb.get("name") for lb in meta.get("labels", []) if lb.get("name")],
         "head_ref": head_ref,
         "base_ref": base_ref,
         "head_sha": head_sha,
@@ -294,7 +294,7 @@ def from_pr_rest(repo: str, pr: int) -> Optional[Dict[str, Any]]:
             return None
         return _build_rest(
             repo, "github-rest", meta.get("number"), meta.get("title"), meta.get("body"),
-            [l.get("name") for l in meta.get("labels", []) if l.get("name")],
+            [lb.get("name") for lb in meta.get("labels", []) if lb.get("name")],
             (meta.get("head") or {}).get("ref"), (meta.get("base") or {}).get("ref") or "main",
             "pull/{}/head".format(pr))
 

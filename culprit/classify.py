@@ -8,7 +8,7 @@ of guessing.
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
 _BUG_BRANCH = re.compile(r"^(bug|bugfix|fix|hotfix|patch)[/\-_]", re.I)
 _FEAT_BRANCH = re.compile(r"^(feat|feature|enhancement|chore|refactor)[/\-_]", re.I)
@@ -37,7 +37,7 @@ def classify(ctx: Dict[str, Any]) -> Dict[str, Any]:
     elif _FEAT_BRANCH.match(branch):
         score = _add(evidence, score, -2, "branch '{}' uses a feat/feature prefix".format(branch))
 
-    labels = [str(l).lower() for l in (ctx.get("labels") or [])]
+    labels = [str(lb).lower() for lb in (ctx.get("labels") or [])]
     for lab in labels:
         if lab in _BUG_LABELS:
             score = _add(evidence, score, 3, "PR label '{}' indicates a bug".format(lab))

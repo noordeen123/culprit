@@ -2,11 +2,9 @@ import os
 import tempfile
 
 import pytest
+from githelper import git as _git
 
 from culprit import cli, trace
-
-
-from githelper import git as _git
 
 
 def test_parse_handles_multiple_languages():
@@ -67,6 +65,53 @@ def test_rca_from_trace_blames_the_crashing_line(crash_repo):
 def test_unresolved_trace_raises(crash_repo):
     with pytest.raises(SystemExit):
         cli.analyze_trace(crash_repo, 'File "nonexistent_xyz.py", line 9, in foo\n')
+
+
+def test_parse_sentry_json_event():
+    event = {
+        "exception": {
+            "values": [{
+                "stacktrace": {
+                    "frames": [
+                        {"filename": "app/utils.py", "lineno": 10, "function": "helper"},
+                        {"filename": "app/calc.py",  "lineno": 3,  "function": "area"},
+                    ]
+                }
+            }]
+        }
+    }
+    import json
+    frames = trace.parse(json.dumps(event))
+    assert len(frames) == 2
+    assert frames[0] == {"file": "app/utils.py", "line": 10, "func": "helper", "lang": "python"}
+    assert frames[1] == {"file": "app/calc.py",  "line": 3,  "func": "area",   "lang": "python"}
+
+
+def test_parse_sentry_skips_frames_without_filename():
+    event = {
+        "exception": {
+            "values": [{
+                "stacktrace": {
+                    "frames": [
+                        {"filename": None, "lineno": 5, "function": "anon"},
+                        {"filename": "app/calc.py", "lineno": 3, "function": "area"},
+                    ]
+                }
+            }]
+        }
+    }
+    import json
+    frames = trace.parse(json.dumps(event))
+    assert len(frames) == 1
+    assert frames[0]["file"] == "app/calc.py"
+
+
+def test_parse_falls_through_to_regex_for_non_sentry_json():
+    # Valid JSON but not a Sentry event — should fall through to the regex path.
+    import json
+    text = json.dumps({"some": "other json"})
+    frames = trace.parse(text)
+    assert frames == []
 
 
 def test_resolve_preserves_leading_dot_dir(tmp_path):

@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Tuple
 
 from . import _proc
-from .suspect import _parse_hunks, _iso, _pr_for_commit
+from .suspect import _parse_hunks, _pr_for_commit
 
 # Field/record delimiters that won't appear in commit metadata.
 _SOH, _US, _STX = "\x01", "\x1f", "\x02"
@@ -93,7 +93,6 @@ def build_timeline(ctx: Dict[str, Any], repo: str, suspects: List[Dict[str, Any]
     if not base:
         return {"ranges": [], "notes": ["no base revision; timeline unavailable"]}
 
-    suspect_hashes = {s["hash"] for s in suspects} if suspects else set()
     prime = suspects[0]["hash"] if suspects else None
 
     parsed = _parse_hunks(head_diff)

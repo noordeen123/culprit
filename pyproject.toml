@@ -35,9 +35,9 @@ Issues = "https://github.com/noordeen123/culprit/issues"
 [project.optional-dependencies]
 # Only needed for the standalone (non-Claude-Code) reasoning layer.
 api = ["anthropic>=0.40"]
-# MCP server for Claude Code, Cursor, Windsurf integration.
+# MCP server — works with any MCP-compatible client (Claude Code, Cursor, Windsurf, VS Code, etc.). Requires Python 3.10+.
 mcp = ["mcp>=1.0"]
-dev = ["pytest>=7"]
+dev = ["pytest>=7", "ruff>=0.4"]
 
 [project.scripts]
 rca = "culprit.cli:main"
@@ -52,4 +52,8 @@ culprit = ["templates/*.html"]
 
 # Version is derived from the git tag (vX.Y.Z) by setuptools-scm, so there is no
 # hardcoded version anywhere. To release: tag the commit and cut the release.
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = ["E501"]
+
 [tool.setuptools_scm]
