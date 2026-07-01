@@ -35,11 +35,14 @@ Issues = "https://github.com/noordeen123/culprit/issues"
 [project.optional-dependencies]
 # Only needed for the standalone (non-Claude-Code) reasoning layer.
 api = ["anthropic>=0.40"]
+# MCP server for Claude Code, Cursor, Windsurf integration.
+mcp = ["mcp>=1.0"]
 dev = ["pytest>=7"]
 
 [project.scripts]
 rca = "culprit.cli:main"
 culprit = "culprit.cli:main"
+culprit-mcp = "culprit.mcp_server:main"
 
 [tool.setuptools.packages.find]
 include = ["culprit*"]

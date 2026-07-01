@@ -6,8 +6,8 @@
     rca --mode api --fast    # use the Claude API reasoning layer (standalone)
     rca --json               # print the structured result only
 
-In Claude Code the default --mode harness emits the skeleton and the harness
-writes the narrative. --mode api calls Claude directly for terminal/CI use.
+Default --mode api calls the Claude API and produces a finished narrative.
+Use --mode harness in the Claude Code skill (skeleton returned, agent reasons).
 """
 from __future__ import annotations
 
@@ -153,8 +153,8 @@ def main(argv: Optional[list] = None) -> int:
                         "confirm the suspect. Must exit non-zero when the bug is present.")
     p.add_argument("--good", metavar="REF", help="known-good ref for --bisect (default: suspect's parent)")
     p.add_argument("--bad", metavar="REF", help="known-bad ref for --bisect (default: the base)")
-    p.add_argument("--mode", choices=["harness", "api"], default="harness",
-                   help="reasoning layer (default: harness)")
+    p.add_argument("--mode", choices=["harness", "api"], default="api",
+                   help="reasoning layer (default: api; use --mode harness in Claude Code skill)")
     p.add_argument("--fast", action="store_true", help="api mode: use the faster/cheaper model")
     p.add_argument("--json", action="store_true", help="print structured result only")
     p.add_argument("--select-tests", dest="select_tests", action="store_true",
