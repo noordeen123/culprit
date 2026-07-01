@@ -35,7 +35,22 @@ from . import (
 )
 from .cli import _run as _cli_run, _trunk, analyze as cli_analyze, analyze_trace
 
-mcp = FastMCP("culprit")
+mcp = FastMCP(
+    "culprit",
+    instructions=(
+        "RCA (root-cause analysis) engine for git repos. "
+        "Recommended agent workflow:\n"
+        "  1. analyze()           — full overview in one call (classify + suspects/blast-radius + risk + test impact)\n"
+        "  2. find_suspects()     — drill into which commits introduced the bug\n"
+        "  3. get_evolution()     — line-by-line history of the exact buggy lines\n"
+        "  4. get_intent()        — what the author was trying to do in the suspect commit\n"
+        "  5. check_completeness()— are there other call sites the fix missed?\n"
+        "  6. verify_fix()        — pass your proposed diff BEFORE committing; iterate until verdict='complete'\n"
+        "  7. get_risk_score()    — QA gate score (use with --fail-on in CI)\n\n"
+        "For a stack trace with no fix in hand, start with from_trace() instead of analyze(). "
+        "All tools are read-only — they never modify the repo or create commits."
+    ),
+)
 
 
 def _resolve(repo: str, base: Optional[str] = None, head: Optional[str] = None,
@@ -56,7 +71,7 @@ def analyze(repo: str, base: str = None, head: str = None, pr: int = None) -> di
     individual tools for iterative investigation.
     """
     repo = os.path.abspath(repo)
-    return cli_analyze(repo, pr=pr, base=base, head=head)
+    return cli_analyze(repo, pr=pr, base=base or config.repo_base(repo), head=head)
 
 
 @mcp.tool()
@@ -183,13 +198,13 @@ def from_trace(repo: str, trace_text: str, head: str = None) -> dict:
     Parses the stack trace, blames the crashing lines in git history, and returns
     the suspect set. Works for Python, JavaScript, Java, and Go stack traces.
 
-    Returns: {suspects: [...], changed_files: [...], notes: [...]}
+    Returns: {suspects: [...], frames: [{file, line, func}], skipped_frames: [...], notes: [...]}
     """
     repo = os.path.abspath(repo)
     result = analyze_trace(repo, trace_text, head=head)
     return {
         "suspects": (result.get("bugfix") or {}).get("suspects", []),
-        "changed_files": result.get("trace", {}).get("frames", []),
+        "frames": result.get("trace", {}).get("frames", []),
         "skipped_frames": result.get("trace", {}).get("skipped", []),
         "notes": (result.get("bugfix") or {}).get("notes", []),
     }
