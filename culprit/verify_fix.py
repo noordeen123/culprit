@@ -7,21 +7,19 @@ iterate before touching git.
 """
 from __future__ import annotations
 
-import re
 from typing import Any, Dict, List, Optional
 
 from . import completeness, testimpact
-
-_DIFF_FILE = re.compile(r"^diff --git a/(.+?) b/")
+from .suspect import _DIFF_GIT
 
 
 def _changed_files_from_diff(diff: str) -> List[str]:
-    seen: List[str] = []
+    seen: Dict[str, None] = {}
     for line in (diff or "").splitlines():
-        m = _DIFF_FILE.match(line)
-        if m and m.group(1) not in seen:
-            seen.append(m.group(1))
-    return seen
+        m = _DIFF_GIT.match(line)
+        if m:
+            seen.setdefault(m.group(2), None)
+    return list(seen)
 
 
 def assess(repo: str, proposed_diff: str, base: Optional[str] = None) -> Dict[str, Any]:

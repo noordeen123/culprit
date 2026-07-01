@@ -170,6 +170,12 @@ def main(argv: Optional[list] = None) -> int:
                    help="exit non-zero when the QA risk level meets/exceeds this (CI gate)")
     args = p.parse_args(argv)
 
+    if args.mode == "api" and not os.environ.get("ANTHROPIC_API_KEY"):
+        sys.stderr.write(
+            "note: --mode api requires ANTHROPIC_API_KEY; falling back to --mode harness\n"
+        )
+        args.mode = "harness"
+
     repo = os.path.abspath(os.path.expanduser(args.repo))
     pr = args.pr_flag if args.pr_flag is not None else args.pr
 

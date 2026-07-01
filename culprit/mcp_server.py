@@ -38,15 +38,10 @@ from .cli import _run as _cli_run, _trunk, analyze as cli_analyze, analyze_trace
 mcp = FastMCP("culprit")
 
 
-def _ctx(repo: str, base: Optional[str] = None, head: Optional[str] = None,
-         pr: Optional[int] = None) -> Dict[str, Any]:
+def _resolve(repo: str, base: Optional[str] = None, head: Optional[str] = None,
+             pr: Optional[int] = None) -> Dict[str, Any]:
     repo = os.path.abspath(repo)
-    if pr:
-        ctx = pr_context.from_pr(repo, pr)
-        if ctx:
-            return ctx
-    resolved_base = base or config.repo_base(repo)
-    return pr_context.from_local(repo, resolved_base, head)
+    return pr_context.resolve(repo, pr=pr, base=base or config.repo_base(repo), head=head)
 
 
 # ---------------------------------------------------------------------------
@@ -61,9 +56,7 @@ def analyze(repo: str, base: str = None, head: str = None, pr: int = None) -> di
     individual tools for iterative investigation.
     """
     repo = os.path.abspath(repo)
-    result = cli_analyze(repo, pr=pr, base=base, head=head)
-    result["risk"] = risk_mod.score(result)
-    return result
+    return cli_analyze(repo, pr=pr, base=base, head=head)
 
 
 @mcp.tool()
@@ -72,7 +65,7 @@ def classify_change(repo: str, base: str = None, head: str = None) -> dict:
 
     Returns: {verdict: "bugfix"|"feature"|"unknown", evidence: [...], signals: {...}}
     """
-    ctx = _ctx(repo, base, head)
+    ctx = _resolve(repo, base, head)
     return classify.classify(ctx)
 
 
@@ -90,12 +83,11 @@ def find_suspects(repo: str, base: str = None, head: str = None,
     repo = os.path.abspath(repo)
     if trace_text:
         from . import trace as trace_mod
-        import re
         frames = trace_mod.parse(trace_text)
         resolved, _ = trace_mod.resolve_files(repo, frames)
         ctx = pr_context.from_trace(repo, resolved)
     else:
-        ctx = _ctx(repo, base, head)
+        ctx = _resolve(repo, base, head)
     return suspect.find_suspects(ctx, repo, trunk=_trunk(repo))
 
 
@@ -105,19 +97,19 @@ def get_blast_radius(repo: str, base: str = None, head: str = None) -> dict:
 
     Returns: {dependents: {...}, covering_tests: [...], high_risk: [...], notes: [...]}
     """
-    ctx = _ctx(repo, base, head)
+    ctx = _resolve(repo, base, head)
     return blast_radius.analyze(ctx, repo)
 
 
 @mcp.tool()
-def get_risk_score(repo: str, base: str = None, head: str = None) -> dict:
+def get_risk_score(repo: str, base: str = None, head: str = None, pr: int = None) -> dict:
     """QA risk score for a change: 0-100 with level (low/medium/high) and contributing factors.
 
     Combines test gap, fix completeness, hotspot recurrence, blast radius, and churn.
 
     Returns: {score: int, level: "low"|"medium"|"high", factors: [{name, detail, points}]}
     """
-    ctx = _ctx(repo, base, head)
+    ctx = _resolve(repo, base, head, pr)
     result = _cli_run(ctx, repo)
     return risk_mod.score(result)
 
@@ -167,7 +159,7 @@ def check_completeness(repo: str, base: str = None, head: str = None) -> dict:
     Returns: {symbols: [...], other_call_sites: {...}, untouched_count: int,
               adds_test: bool, is_revert: bool, notes: [...]}
     """
-    ctx = _ctx(repo, base, head)
+    ctx = _resolve(repo, base, head)
     return completeness.assess(ctx, repo, [])
 
 
@@ -180,7 +172,7 @@ def get_test_impact(repo: str, base: str = None, head: str = None) -> dict:
 
     Returns: {tests: [...], by_test: {test: [reasons]}, notes: [...]}
     """
-    ctx = _ctx(repo, base, head)
+    ctx = _resolve(repo, base, head)
     return testimpact.select(ctx, repo)
 
 
