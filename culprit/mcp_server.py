@@ -115,7 +115,7 @@ def find_suspects(repo: str, base: str = None, head: str = None,
         from . import trace as trace_mod
         frames = trace_mod.parse(trace_text)
         resolved, _ = trace_mod.resolve_files(repo, frames)
-        ctx = pr_context.from_trace(repo, resolved)
+        ctx = pr_context.from_trace(repo, resolved, head=head)
     else:
         ctx = _resolve(repo, base, head)
     return suspect.find_suspects(ctx, repo, trunk=_trunk(repo))

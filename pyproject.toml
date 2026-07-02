@@ -36,7 +36,7 @@ Issues = "https://github.com/noordeen123/culprit/issues"
 # Only needed for the standalone (non-Claude-Code) reasoning layer.
 api = ["anthropic>=0.40"]
 # MCP server — works with any MCP-compatible client (Claude Code, Cursor, Windsurf, VS Code, etc.). Requires Python 3.10+.
-mcp = ["mcp>=1.0"]
+mcp = ["mcp>=1.0; python_version >= '3.10'"]
 dev = ["pytest>=7", "ruff>=0.4"]
 
 [project.scripts]

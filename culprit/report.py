@@ -73,8 +73,9 @@ def markdown_skeleton(result: Dict[str, Any]) -> str:
         if b.get("origin_on_branch") and prime:
             lines.append("> **When it broke: not determined from this base.** The blamed commit "
                          "`{}` is on the current branch (part of this change), not the bug's origin. "
-                         "Re-run against your target branch (`--base {}`) to trace it.".format(
-                             prime["short"], b.get("trunk")))
+                         "Re-run against your target branch{} to trace it.".format(
+                             prime["short"],
+                             " (`--base {}`)".format(b["trunk"]) if b.get("trunk") else ""))
             lines.append("")
         if prime:
             intent = prime.get("intent") or {}
