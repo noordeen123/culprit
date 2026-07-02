@@ -3,11 +3,9 @@ import subprocess
 import tempfile
 
 import pytest
+from githelper import git as _git
 
 from culprit import completeness
-
-
-from githelper import git as _git
 
 
 @pytest.fixture()

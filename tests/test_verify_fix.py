@@ -3,9 +3,9 @@ import os
 import tempfile
 
 import pytest
+from githelper import git as _git
 
 from culprit import verify_fix
-from githelper import git as _git
 
 
 @pytest.fixture()

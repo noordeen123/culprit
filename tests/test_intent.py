@@ -3,12 +3,10 @@ import subprocess
 import tempfile
 
 import pytest
+from githelper import git as _git
 
 from culprit import intent
 from culprit.intent import _linked_issues
-
-
-from githelper import git as _git
 
 
 @pytest.fixture()

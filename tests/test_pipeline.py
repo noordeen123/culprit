@@ -2,11 +2,9 @@ import os
 import tempfile
 
 import pytest
+from githelper import git as _git
 
 from culprit import cli
-
-
-from githelper import git as _git
 
 
 @pytest.fixture()
