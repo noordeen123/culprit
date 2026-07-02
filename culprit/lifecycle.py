@@ -7,12 +7,16 @@ hotspot that keeps getting bug-fixed). All read-only git queries.
 """
 from __future__ import annotations
 
+import re
 from typing import Any, Dict, List
 
 from . import _proc
 from .classify import _BUG_PREFIX
 
 _MAX_RELEASES = 12
+
+# Regex to skip test files when scanning for hotspot recurrence.
+_TEST_FILE = re.compile(r'\.(test|spec|cy)\b|[\\/](tests?|__tests__)[\\/]', re.IGNORECASE)
 
 
 def _tags_containing(repo: str, sha: str) -> List[str]:
@@ -24,12 +28,20 @@ def _tags_containing(repo: str, sha: str) -> List[str]:
     return [t for t in out.splitlines() if t.strip()]
 
 
+def _recurrence_for_file(repo: str, base: str, path: str) -> Dict[str, Any]:
+    subjects = _proc.git(["log", "--format=%s", str(base), "--", path], repo, check=False).splitlines()
+    total = len([s for s in subjects if s.strip()])
+    fixes = len([s for s in subjects if _BUG_PREFIX.search(s)])
+    return {"file": path, "fix_count": fixes, "total_commits": total, "is_hotspot": fixes >= 3}
+
+
 def build(repo: str, ctx: Dict[str, Any], suspects: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Return ``{releases, releases_truncated, commits_span, authors_span, recurrence, notes}``."""
+    """Return ``{releases, releases_truncated, total_releases, commits_span, authors_span, recurrence, notes}``."""
     notes: List[str] = []
     if not suspects:
-        return {"releases": [], "releases_truncated": False, "commits_span": None,
-                "authors_span": None, "recurrence": None, "notes": ["no suspect to trace"]}
+        return {"releases": [], "releases_truncated": False, "total_releases": 0,
+                "commits_span": None, "authors_span": None, "recurrence": None,
+                "notes": ["no suspect to trace"]}
 
     suspect = suspects[0]
     sha = suspect.get("hash")
@@ -40,15 +52,19 @@ def build(repo: str, ctx: Dict[str, Any], suspects: List[Dict[str, Any]]) -> Dic
     # Releases that shipped the bug: tags that contain the suspect but not the fix.
     releases: List[str] = []
     releases_truncated = False
+    total_releases = 0
     if sha:
         bug_tags = _tags_containing(repo, sha)
         fix_tags = set(_tags_containing(repo, head)) if head else set()
-        releases = [t for t in bug_tags if t not in fix_tags]
+        all_bug_releases = [t for t in bug_tags if t not in fix_tags]
+        total_releases = len(all_bug_releases)
         if not bug_tags and not fix_tags:
             notes.append("repo has no release tags reachable from the suspect")
-        if len(releases) > _MAX_RELEASES:
-            releases = releases[:_MAX_RELEASES]
+        if total_releases > _MAX_RELEASES:
+            releases = all_bug_releases[:_MAX_RELEASES]
             releases_truncated = True
+        else:
+            releases = all_bug_releases
 
     # How far the bug spread before the fix.
     commits_span = None
@@ -62,20 +78,27 @@ def build(repo: str, ctx: Dict[str, Any], suspects: List[Dict[str, Any]]) -> Dic
         authors = _proc.git(log_args, repo, check=False).splitlines()
         authors_span = len({a for a in authors if a.strip()}) or None
 
-    # Recurrence: how many prior commits to this file were themselves fixes.
+    # Recurrence: how many prior commits to the fixed files were themselves bug-fixes.
+    # Use the files actually changed in the diff (ctx["changed_files"]) — those contain
+    # the buggy code regardless of which file the prime suspect happened to touch.
+    # Fall back to the prime suspect's file if the diff file list is unavailable.
     recurrence = None
-    if file:
-        base = ctx.get("base_sha") or ctx.get("base_ref")
-        subjects = (_proc.git(["log", "--format=%s", str(base), "--", file], repo, check=False).splitlines()
-                    if base else [])
-        total = len([s for s in subjects if s.strip()])
-        fixes = len([s for s in subjects if _BUG_PREFIX.search(s)])
-        recurrence = {"file": file, "fix_count": fixes, "total_commits": total,
-                      "is_hotspot": fixes >= 3}
+    base = ctx.get("base_sha") or ctx.get("base_ref")
+    if base:
+        fix_files = [f for f in (ctx.get("changed_files") or []) if not _TEST_FILE.search(f)]
+        check_files = fix_files[:10] or ([file] if file else [])
+        best: Dict[str, Any] = {}
+        for path in check_files:
+            r = _recurrence_for_file(repo, base, path)
+            if not best or r["fix_count"] > best["fix_count"]:
+                best = r
+        if best:
+            recurrence = best
 
     return {
         "releases": releases,
         "releases_truncated": releases_truncated,
+        "total_releases": total_releases,
         "commits_span": commits_span,
         "authors_span": authors_span,
         "recurrence": recurrence,

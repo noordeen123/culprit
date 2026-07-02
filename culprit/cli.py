@@ -18,9 +18,24 @@ import os
 import sys
 from typing import Any, Dict, Optional
 
-from . import (bisect, blast_radius, classify, completeness, config, coupling,
-               coverage, evolution, intent, lifecycle, owners, pr_context,
-               reasoning, report, risk, suspect, testimpact, trace)
+from . import (_proc, bisect, blast_radius, classify, completeness, config,
+               coupling, coverage, evolution, intent, lifecycle, owners,
+               pr_context, reasoning, report, risk, suspect, testimpact, trace)
+
+
+def _trunk(repo: str) -> Optional[str]:
+    """The branch this work likely targets - used to tell the bug's origin (in the
+    target history) apart from a commit on the current branch (part of this change)."""
+    base = config.repo_base(repo)
+    if base and _proc.git(["rev-parse", "--verify", "--quiet", base], repo, check=False).strip():
+        return base
+    head = _proc.git(["symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"], repo, check=False).strip()
+    if head.startswith("refs/remotes/"):
+        return head[len("refs/remotes/"):]
+    for alt in ("origin/main", "origin/master", "main", "master"):
+        if _proc.git(["rev-parse", "--verify", "--quiet", alt], repo, check=False).strip():
+            return alt
+    return None
 
 
 def _run(ctx: Dict[str, Any], repo: str, force: Optional[str] = None,
@@ -39,7 +54,7 @@ def _run(ctx: Dict[str, Any], repo: str, force: Optional[str] = None,
         feature = blast_radius.analyze(ctx, repo)
     else:
         # bugfix or unknown -> run RCA (the more actionable default)
-        bugfix = suspect.find_suspects(ctx, repo)
+        bugfix = suspect.find_suspects(ctx, repo, trunk=_trunk(repo))
         # Attach the line-evolution timeline (origin -> ... -> suspect -> fix).
         bugfix["timeline"] = evolution.build_timeline(ctx, repo, bugfix.get("suspects", []))
         # Did the touched files have any tests? (why the bug slipped through)
@@ -178,6 +193,13 @@ def main(argv: Optional[list] = None) -> int:
     else:
         result = analyze(repo, pr=pr, base=base, head=args.head, force=args.force,
                          coverage_path=args.coverage)
+
+    # Warn when the blame landed on this branch's own work (not the bug's origin).
+    bf = result.get("bugfix") or {}
+    if bf.get("origin_on_branch"):
+        sys.stderr.write(
+            "note: the blamed commit is on this branch (part of your change), not the bug's "
+            "origin; re-run with --base {} to trace it\n".format(bf.get("trunk")))
 
     # Optional: confirm the suspect with a real git bisect (read-only, in a worktree).
     if args.bisect and result.get("bugfix"):

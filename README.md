@@ -192,6 +192,14 @@ and signals risk via the **exit code** - it never comments on or writes to the P
 The job fails only when the QA risk is `high`; the report is uploaded either way. To gate
 in any other CI, run `rca ... --fail-on high` and check the exit status.
 
+## Use in Claude Code (or any agent)
+
+culprit emits structured JSON, so an agent can run the deterministic analysis and write the
+"why it broke" narrative itself (no API key needed - the agent *is* the reasoning layer).
+A ready-to-adapt Claude Code skill template is at
+[`examples/claude-code-skill/SKILL.md`](examples/claude-code-skill/SKILL.md) - copy it to
+`.claude/skills/rca/` in your repo and replace the `<REPO_PATH>` / `<BASE_BRANCH>` placeholders.
+
 ## culprit vs `git bisect`
 
 Same goal - find the commit that introduced a bug - but opposite method:
