@@ -14,6 +14,15 @@ description: Root-cause analysis and QA review for a PR, branch, or stack trace.
   Pin <BASE_BRANCH> once in a `.culprit.toml` at the repo root (`base = "origin/main"`)
   so you can drop --base entirely. The engine is read-only - it only runs git
   (diff/blame/log) and, when available, gh pr (read-only). It never modifies the repo or PR.
+
+  NOTE: If your agent supports MCP (Claude Code, Cursor, Windsurf, VS Code, Codex CLI,
+  Zed, Continue, Cline, Amazon Q, Goose, or any MCP SDK client), the MCP server
+  integration is simpler and more capable than this skill. Install with:
+      pip install "culprit[mcp]"
+  Then add to your client's MCP config:
+      { "mcpServers": { "culprit": { "command": "culprit-mcp" } } }
+  All 11 culprit tools (including verify_fix) then appear natively without needing this file.
+  See https://github.com/noordeen123/culprit#use-in-claude-code-or-any-agent
 -->
 
 # RCA (Root Cause Analysis) + QA review

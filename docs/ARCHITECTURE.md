@@ -86,6 +86,12 @@ The `result` (the structured output) is `ctx`-derived plus: `classification`, `b
 |---|---|
 | `trace.py` | Parse Python / JS / Java / Go **stack traces** and resolve frames to repo files (RCA from a crash, no fix needed). |
 
+### Fix verification
+
+| Module | Job |
+|---|---|
+| `verify_fix.py` | Given a proposed diff (not yet committed), check completeness via `completeness` + `testimpact` and return `verdict: complete\|partial\|risky` with the untouched call sites and tests to run. Used by the `verify_fix` MCP tool. |
+
 ### Reasoning, assembly, output
 
 | Module | Job |
@@ -94,8 +100,9 @@ The `result` (the structured output) is `ctx`-derived plus: `classification`, `b
 | `report.py` | Assemble the JSON `result` (+ attach the risk score) and a markdown skeleton the narrative fills. |
 | `htmlreport.py` | Render the self-contained HTML report (template + injected JSON, no CDN). |
 | `templates/report.html` | The zero-build vanilla-JS report UI (risk banner, timeline, all QA sections). |
-| `serve.py` | Interactive local web UI with a base-branch picker. |
-| `cli.py` | The `rca` / `culprit` entrypoint - orchestrates the above and chooses the output. |
+| `serve.py` | Interactive local web UI with a base-branch picker (credentials in-process only). |
+| `mcp_server.py` | MCP server (`culprit-mcp`): exposes all 11 analysis tools over stdio to any MCP-compatible client (Claude Code, Cursor, Windsurf, VS Code, Codex CLI, and more). |
+| `cli.py` | The `rca` / `culprit` entrypoint — orchestrates the above and chooses the output. |
 
 ## Orchestration (`cli.py`)
 

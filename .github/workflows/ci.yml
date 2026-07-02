@@ -26,3 +26,22 @@ jobs:
         run: pip install -e ".[dev]"
       - name: Test
         run: pytest -q
+
+  test-mcp:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"   # mcp>=1.0 requires Python 3.10+
+      - name: Configure git
+        run: |
+          git config --global user.email "ci@example.com"
+          git config --global user.name "culprit CI"
+          git config --global init.defaultBranch main
+      - name: Install with MCP extra
+        run: pip install -e ".[mcp,dev]"
+      - name: Test MCP server
+        run: pytest -q tests/test_mcp_server.py

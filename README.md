@@ -98,8 +98,9 @@ Every step is **read-only** (`git status` is unchanged after any run) and **repo
 ## Install
 
 ```bash
-pip install culprit            # engine + CLI (rca / culprit)
-pip install "culprit[api]"     # + Claude API reasoning layer (anthropic SDK)
+pip install culprit             # engine + CLI (rca / culprit)
+pip install "culprit[api]"      # + Claude API reasoning layer (anthropic SDK)
+pip install "culprit[mcp]"      # + MCP server (any MCP-compatible client)
 ```
 
 Or with [pipx](https://pipx.pypa.io) for an isolated CLI: `pipx install culprit`.
@@ -194,10 +195,59 @@ in any other CI, run `rca ... --fail-on high` and check the exit status.
 
 ## Use in Claude Code (or any agent)
 
-culprit emits structured JSON, so an agent can run the deterministic analysis and write the
-"why it broke" narrative itself (no API key needed - the agent *is* the reasoning layer).
-A ready-to-adapt Claude Code skill template is at
-[`examples/claude-code-skill/SKILL.md`](examples/claude-code-skill/SKILL.md) - copy it to
+### Native MCP integration (recommended)
+
+MCP (Model Context Protocol) is an open standard — `culprit-mcp` runs over stdio and works
+with **any MCP-compatible client**: Claude Code, Cursor, Windsurf, VS Code + Copilot,
+OpenAI Codex CLI, Zed, Continue.dev, Cline, Amazon Q, Goose, or any custom agent built on
+the MCP SDK.
+
+```bash
+pip install "culprit[mcp]"      # Python 3.10+
+```
+
+Add the server to your client's MCP config (the key is `mcpServers` in most clients; check
+your client's docs for the exact file location):
+
+```json
+{
+  "mcpServers": {
+    "culprit": { "command": "culprit-mcp" }
+  }
+}
+```
+
+Restart the client after adding. For Claude Code the file is `~/.claude.json`; for
+other clients check their MCP documentation for the exact config file location — the
+`mcpServers` key format is standard across the ecosystem.
+
+All 11 culprit tools then appear natively — no CLI round-trip, no ANTHROPIC_API_KEY needed for the
+deterministic analysis:
+
+| Tool | What it does |
+|---|---|
+| `analyze` | Full RCA in one call — classify + suspects/blast-radius + risk + test impact |
+| `find_suspects` | Rank the commits most likely to have introduced a bug |
+| `get_evolution` | Line-by-line history of the exact buggy lines |
+| `get_intent` | What the author was trying to do in the suspect commit |
+| `check_completeness` | Other call sites the fix missed |
+| `verify_fix` | Pass your proposed diff before committing — returns `complete`/`partial`/`risky` |
+| `get_risk_score` | QA gate score (0-100, low/medium/high, with contributing factors) |
+| `get_blast_radius` | What a feature change affects (dependents, tests, high-risk areas) |
+| `get_test_impact` | Which existing tests to run for this change |
+| `classify_change` | Bugfix vs feature classification with evidence |
+| `from_trace` | RCA from a stack trace — no diff or PR needed |
+
+Recommended agent workflow:
+`analyze → find_suspects → get_evolution → get_intent → check_completeness → verify_fix → get_risk_score`.
+
+`verify_fix` takes a proposed diff and returns `verdict: complete|partial|risky`, the untouched call
+sites, and the tests to run. Iterate until `complete` before committing.
+
+### Claude Code skill (alternative)
+
+If you prefer a skill-based integration where the agent runs the CLI and writes the narrative,
+copy [`examples/claude-code-skill/SKILL.md`](examples/claude-code-skill/SKILL.md) into
 `.claude/skills/rca/` in your repo and replace the `<REPO_PATH>` / `<BASE_BRANCH>` placeholders.
 
 ## culprit vs `git bisect`

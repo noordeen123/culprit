@@ -8,16 +8,28 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **MCP server** (`pip install "culprit[mcp]"`). All 11 culprit tools —
+  `analyze`, `find_suspects`, `get_evolution`, `get_intent`, `check_completeness`,
+  `verify_fix`, `get_risk_score`, `get_blast_radius`, `get_test_impact`,
+  `classify_change`, `from_trace` — appear natively in any MCP-compatible client
+  (Claude Code, Cursor, Windsurf, VS Code, Codex CLI, Zed, Continue, Cline, Amazon Q,
+  and more) after a one-line `mcpServers` config entry. Includes a 7-step recommended
+  agent workflow baked into the server description.
+- **`verify_fix` tool.** An agent proposes a patch as a raw unified diff; the tool
+  returns `verdict: complete|partial|risky`, the untouched call sites the fix missed,
+  and the tests to run. Designed for an iterative loop: `find_suspects → propose fix →
+  verify_fix → patch → verify_fix → complete → commit`.
 - **Self-suspect guard.** Suspects are checked against the target branch
   (`merge-base --is-ancestor`): each carries `in_base`, and `bugfix.origin_on_branch`
   flags when the prime suspect is a commit on the current branch (part of the change
-  being analyzed) rather than the bug's true origin. The report Summary, markdown, and
-  a stderr note say so and point at `--base <trunk>` instead of naming a false origin.
-- **Report Summary + collapsible timeline.** The HTML report opens with a pinned
-  Summary (verdict, when-it-broke, risk, do-next) and collapses earlier line-evolution
-  history by default, so a small change no longer renders a wall of steps.
-- **Claude Code skill template** at `examples/claude-code-skill/SKILL.md` - run the
-  deterministic engine and let an agent write the narrative (no API key).
+  being analyzed) rather than the bug's true origin.
+- **Multi-cluster detection.** The suspect set now identifies independent clusters of
+  introducing commits when a change touches unrelated areas of the codebase.
+
+## [0.3.0] - 2026-06-24
+
+### Added
+
 - **QA risk score + CI gate.** Every report now carries a single explainable risk
   score (0-100, low/medium/high) combining test gap, fix completeness, hotspot
   recurrence, blast radius, and churn. `--fail-on {low,medium,high}` exits non-zero
@@ -29,22 +41,39 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   precision, reporting exactly which changed lines are uncovered (sharpening the risk score).
 - **RCA from a stack trace.** `--trace PATH` (or `-` for stdin) parses a Python/JS/
   Java/Go stack trace, resolves the frames to repo files, and runs the full RCA
-  (suspect + line evolution + risk) on the crashing lines - no fix, PR, or test needed.
+  (suspect + line evolution + risk) on the crashing lines — no fix, PR, or test needed.
 - **Predictive signals.** Change-coupling detection surfaces files that historically
   change together with the ones you touched but are missing from the change ("did you
   forget X?"); reviewer suggestions come from `CODEOWNERS` + git authorship.
+- **Serve mode credentials.** The `rca serve` UI now has a collapsible Credentials
+  section for a GitHub token (enables private repos / rate limits) and an Anthropic API
+  key (enables the Claude API narrative). Both are kept in process memory only —
+  never written to disk or placed in a URL.
+- **Claude Code skill template** at `examples/claude-code-skill/SKILL.md` — run the
+  deterministic engine and let an agent write the narrative (no API key).
+- **Report Summary + collapsible timeline.** The HTML report opens with a pinned
+  Summary (verdict, when-it-broke, risk, do-next) and collapses earlier line-evolution
+  history by default.
 
-- The bug's life story for a bugfix: the introducing commit's **intent** (its
-  message body + the PR/issue it came from), a **lifecycle** view (which releases
-  shipped the bug, commits/authors spanned, recurring-hotspot detection via
-  `git tag --contains` / `git log`), and a **fix-completeness** check (other
-  untouched references to the changed symbols, whether a test was added, revert
-  detection). The HTML report and narrative are restructured into an
-  Introduced -> Lived -> Broke -> Why -> Fixed -> Prevent story.
+## [0.2.0] - 2026-06-22
+
+### Added
+
+- **Bug's life story.** For a bugfix, the report now reconstructs the full lifecycle:
+  - **Intent** — the introducing commit's message body, its PR (title, description,
+    URL), and linked issues (`Fixes #N`) so you can see *what the author was trying
+    to do* when they broke it.
+  - **Lifecycle** — which releases shipped the bug (`git tag --contains`), how many
+    commits and authors touched the file between the suspect and the fix,
+    and recurring-**hotspot** detection.
+  - **Fix completeness** — other un-patched references to the changed symbols,
+    whether a test was added, and revert detection.
+  - The HTML report and narrative are restructured into an
+    Introduced → Lived → Broke → Why → Fixed → Prevent story.
 
 ### Changed
 
-- Version is now derived from the git tag via `setuptools-scm` - no version string
+- Version is now derived from the git tag via `setuptools-scm` — no version string
   is hardcoded in `pyproject.toml` / `culprit/__init__.py` anymore.
 
 ## [0.1.2] - 2026-06-20
@@ -97,7 +126,9 @@ Initial release.
 - Configurable base branch and host via `.culprit.toml` / `CULPRIT_BASE` /
   `CULPRIT_HOST`.
 
-[Unreleased]: https://github.com/noordeen123/culprit/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/noordeen123/culprit/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/noordeen123/culprit/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/noordeen123/culprit/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/noordeen123/culprit/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/noordeen123/culprit/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/noordeen123/culprit/releases/tag/v0.1.0
