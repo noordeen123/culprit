@@ -25,7 +25,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install culprit
-        run: pip install culprit
+        run: pip install "culprit>=0.3.0"
 
       - name: Run RCA + QA gate
         env:

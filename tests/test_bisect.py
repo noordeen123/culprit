@@ -5,11 +5,9 @@ import sys
 import tempfile
 
 import pytest
-
-from culprit import bisect, cli, pr_context, suspect
-
-
 from githelper import git as _git
+
+from culprit import bisect, pr_context, suspect
 
 
 @pytest.fixture()
@@ -69,7 +67,7 @@ def test_bisect_is_read_only(bisectable_repo):
     assert before_status == after_status      # working tree untouched
     assert before_head == after_head          # HEAD not moved
     # only the main worktree remains (the temp bisect worktree was torn down)
-    assert len([l for l in worktrees.splitlines() if l.strip()]) == 1
+    assert len([ln for ln in worktrees.splitlines() if ln.strip()]) == 1
 
 
 def test_bisect_without_suspect_is_not_comparable(bisectable_repo):

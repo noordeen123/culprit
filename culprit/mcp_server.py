@@ -29,11 +29,27 @@ except ImportError:
     )
 
 from . import (
-    blast_radius, classify, completeness, config, evolution,
-    intent as intent_mod, pr_context, risk as risk_mod,
-    suspect, testimpact, verify_fix as verify_fix_mod,
+    blast_radius,
+    classify,
+    completeness,
+    config,
+    evolution,
+    pr_context,
+    suspect,
+    testimpact,
 )
-from .cli import _run as _cli_run, _trunk, analyze as cli_analyze, analyze_trace
+from . import (
+    intent as intent_mod,
+)
+from . import (
+    risk as risk_mod,
+)
+from . import (
+    verify_fix as verify_fix_mod,
+)
+from .cli import _run as _cli_run
+from .cli import _trunk, analyze_trace
+from .cli import analyze as cli_analyze
 
 mcp = FastMCP(
     "culprit",
@@ -99,7 +115,7 @@ def find_suspects(repo: str, base: str = None, head: str = None,
         from . import trace as trace_mod
         frames = trace_mod.parse(trace_text)
         resolved, _ = trace_mod.resolve_files(repo, frames)
-        ctx = pr_context.from_trace(repo, resolved)
+        ctx = pr_context.from_trace(repo, resolved, head=head)
     else:
         ctx = _resolve(repo, base, head)
     return suspect.find_suspects(ctx, repo, trunk=_trunk(repo))

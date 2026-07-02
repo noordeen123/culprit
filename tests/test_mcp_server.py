@@ -3,7 +3,6 @@ import os
 import tempfile
 
 import pytest
-
 from githelper import git as _git
 
 
@@ -40,7 +39,6 @@ def test_mcp_server_importable():
 def test_mcp_tools_registered():
     """All 11 expected tools are registered on the FastMCP instance."""
     pytest.importorskip("mcp", reason="pip install culprit[mcp] needed")
-    from culprit import mcp_server
 
     expected = {
         "analyze",

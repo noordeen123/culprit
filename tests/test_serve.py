@@ -2,11 +2,9 @@ import os
 import tempfile
 
 import pytest
+from githelper import git as _git
 
 from culprit import serve
-
-
-from githelper import git as _git
 
 
 @pytest.fixture()
@@ -18,11 +16,13 @@ def repo_with_branches():
     app = os.path.join(d, "calc.py")
     with open(app, "w") as fh:
         fh.write("def area(w, h):\n    return w + h\n")
-    _git(d, "add", "calc.py"); _git(d, "commit", "-m", "feat: add area")
+    _git(d, "add", "calc.py")
+    _git(d, "commit", "-m", "feat: add area")
     _git(d, "checkout", "-b", "fix/area")
     with open(app, "w") as fh:
         fh.write("def area(w, h):\n    return w * h\n")
-    _git(d, "add", "calc.py"); _git(d, "commit", "-m", "fix: area multiply")
+    _git(d, "add", "calc.py")
+    _git(d, "commit", "-m", "fix: area multiply")
     return d
 
 

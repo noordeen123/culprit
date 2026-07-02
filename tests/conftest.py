@@ -1,6 +1,5 @@
 """Shared pytest fixtures."""
 import pytest
-
 from githelper import git
 
 

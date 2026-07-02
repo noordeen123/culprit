@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import datetime
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from . import _proc
 
@@ -213,8 +213,10 @@ def find_suspects(ctx: Dict[str, Any], repo: str, max_suspects: int = 5,
     head = ctx.get("head_sha") or ctx.get("head_ref") or "HEAD"
     notes: List[str] = []
     if not base or _proc.git(["rev-parse", "--verify", str(base)], repo, check=False).strip() == "":
-        return {"suspects": [], "notes": ["base revision not resolvable locally; "
-                                          "fetch the base branch to enable suspect blame"]}
+        return {"suspects": [], "blamed_lines": 0, "trunk": trunk,
+                "origin_on_branch": False,
+                "notes": ["base revision not resolvable locally; "
+                          "fetch the base branch to enable suspect blame"]}
 
     # Aggregate blame across all buggy line ranges. Cap the work so a huge
     # changeset (e.g. a branch far ahead of a stale base) can't blow up.

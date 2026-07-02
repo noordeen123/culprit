@@ -2,8 +2,6 @@ import os
 import subprocess
 import tempfile
 
-import pytest
-
 from culprit import pr_context
 
 

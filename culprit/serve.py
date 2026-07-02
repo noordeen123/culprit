@@ -16,7 +16,7 @@ import json
 import os
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 from urllib.parse import parse_qs, urlparse
 
 from . import _proc, cli, config, htmlreport, reasoning

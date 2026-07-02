@@ -18,9 +18,28 @@ import os
 import sys
 from typing import Any, Dict, Optional
 
-from . import (_proc, bisect, blast_radius, classify, completeness, config,
-               coupling, coverage, evolution, intent, lifecycle, owners,
-               pr_context, reasoning, report, risk, suspect, testimpact, trace)
+from . import (
+    _proc,
+    bisect,
+    blast_radius,
+    classify,
+    completeness,
+    config,
+    coupling,
+    coverage,
+    evolution,
+    intent,
+    lifecycle,
+    owners,
+    pr_context,
+    reasoning,
+    report,
+    risk,
+    suspect,
+    testimpact,
+    trace,
+)
+from . import verify_fix as verify_fix_mod
 
 
 def _trunk(repo: str) -> Optional[str]:
@@ -148,6 +167,9 @@ def main(argv: Optional[list] = None) -> int:
     p.add_argument("--force", choices=["bugfix", "feature"], help="override classification")
     p.add_argument("--trace", metavar="PATH",
                    help="RCA from a stack trace (file path, or - for stdin); needs no fix/PR/test")
+    p.add_argument("--verify-fix", dest="verify_fix", metavar="PATH",
+                   help="check a proposed diff for completeness before committing "
+                        "(file path, or - for stdin); exits 0 if complete, 1 if partial/risky")
     p.add_argument("--bisect", metavar="CMD",
                    help="repro/test command - runs git bisect (in a throwaway worktree) to "
                         "confirm the suspect. Must exit non-zero when the bug is present.")
@@ -188,6 +210,24 @@ def main(argv: Optional[list] = None) -> int:
         base = args.base
     else:
         base = config.repo_base(repo)
+
+    if args.verify_fix:
+        diff = (sys.stdin.read() if args.verify_fix == "-"
+                else open(os.path.expanduser(args.verify_fix), encoding="utf-8").read())
+        vr = verify_fix_mod.assess(repo, diff, base)
+        if args.json:
+            print(json.dumps(vr, indent=2))
+        else:
+            print("verdict: {}".format(vr["verdict"]))
+            refs = vr.get("untouched_references", [])
+            if refs:
+                print("untouched references ({}): {}".format(len(refs), ", ".join(refs)))
+            tests = vr.get("tests_to_run", [])
+            if tests:
+                print("tests to run: {}".format(", ".join(tests)))
+            for note in vr.get("notes", []):
+                sys.stderr.write("note: {}\n".format(note))
+        return 0 if vr["verdict"] == "complete" else 1
 
     if args.trace:
         text = (sys.stdin.read() if args.trace == "-"

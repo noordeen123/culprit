@@ -175,13 +175,13 @@
   function ghCommit(sha){ return L.commit && sha ? L.commit.replace('{sha}', sha) : null; }
   function ghPR(n){ return L.pr && n ? L.pr.replace('{pr}', n) : null; }
   function ghFile(p){ return L.file && p ? L.file.replace('{ref}', BLOBREF).replace('{path}', p) : null; }
-  function linkHash(short, full){ var u=ghCommit(full||short);
+  function linkHash(short, full){ var u=safeHttpUrl(ghCommit(full||short));
     return u ? '<a class="hash" target="_blank" rel="noopener" href="'+u+'">'+esc(short)+'</a>'
              : '<span class="hash">'+esc(short)+'</span>'; }
-  function linkPR(n){ if(!n) return ''; var u=ghPR(n);
+  function linkPR(n){ if(!n) return ''; var u=safeHttpUrl(ghPR(n));
     return u ? ' <a class="muted" target="_blank" rel="noopener" href="'+u+'">'+PRP+esc(n)+'</a>'
              : ' <span class="muted">'+PRP+esc(n)+'</span>'; }
-  function chipFile(p){ var u=ghFile(p);
+  function chipFile(p){ var u=safeHttpUrl(ghFile(p));
     return u ? '<a class="chip" target="_blank" rel="noopener" href="'+u+'">'+esc(p)+'</a>'
              : '<span class="chip">'+esc(p)+'</span>'; }
   function ghIssue(n){ if(!t.repo_url||!n) return null;

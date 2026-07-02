@@ -15,7 +15,7 @@ from .classify import _BUG_PREFIX
 _MAX_RELEASES = 12
 
 # Regex to skip test files when scanning for hotspot recurrence.
-_TEST_FILE = re.compile(r'\.(test|spec|cy)\b|[\\/](tests?|__tests__)[\\/]', re.IGNORECASE)
+_TEST_FILE = re.compile(r'\.(test|spec|cy)\b|(?:^|[\\/])(tests?|__tests__)[\\/]', re.IGNORECASE)
 
 
 def _tags_containing(repo: str, sha: str) -> List[str]:
