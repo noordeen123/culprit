@@ -18,6 +18,27 @@ from . import _proc
 
 MAX_FILES = 150  # safety cap on how many changed files to blame in one run
 
+# Commits that look like mechanical churn (refactors, reformats, renames)
+# rather than logic changes. Used to (a) break ranking ties against them and
+# (b) detect blame-absorbing commits worth chaining through.
+_MECHANICAL_RE = re.compile(
+    r"(?i)\b(refactor|reformat|restyle|style|indent|whitespace|typo|"
+    r"clean\s?up|rename|move|reorder|simplify)\b")
+
+
+def _ranked(entries):
+    """Rank suspect entries deterministically.
+
+    Descending by blamed line count; on ties a mechanical-looking subject
+    loses, then the newer commit wins (ISO date strings compare correctly;
+    undated entries sort last). Two stable sorts: date pass first, then the
+    primary key, so date order survives within equal primary keys.
+    """
+    ordered = sorted(entries, key=lambda e: e.get("date") or "", reverse=True)
+    ordered.sort(key=lambda e: (-e["lines"],
+                                1 if _MECHANICAL_RE.search(e.get("subject") or "") else 0))
+    return ordered
+
 
 def _common_depth(paths: List[str]) -> int:
     """Return how many leading path components all paths share."""
@@ -274,7 +295,7 @@ def find_suspects(ctx: Dict[str, Any], repo: str, max_suspects: int = 5,
     if cluster_note:
         notes.append(cluster_note)
 
-    suspects = sorted(agg.values(), key=lambda e: e["lines"], reverse=True)[:max_suspects]
+    suspects = _ranked(agg.values())[:max_suspects]
     for s in suspects:
         s["files"] = sorted(s["files"])
         s["pr_number"] = _pr_for_commit(repo, s["hash"], str(head))
