@@ -140,7 +140,8 @@ def _blame_lines(repo: str, rev: str, path: str, start: int, end: int) -> List[D
     """Return per-line blame info for path@rev over [start, end]."""
     try:
         out = _proc.git(
-            ["blame", "--line-porcelain", "-L", "{},{}".format(start, end), rev, "--", path],
+            ["blame", "-M", "-C", "--line-porcelain",
+             "-L", "{},{}".format(start, end), rev, "--", path],
             repo,
         )
     except _proc.ProcError:
