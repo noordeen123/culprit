@@ -7,10 +7,17 @@ CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".cache")
 
 
 def git(repo, *args):
-    """Run git in `repo`, return stdout; raise CalledProcessError on failure."""
+    """Run git in `repo`, return stdout; raise CalledProcessError on failure.
+
+    Some real-world history contains commit messages that aren't valid
+    UTF-8 (e.g. old commits authored under a different locale). Decode
+    leniently so a single malformed byte in one commit's body doesn't
+    crash mining of the whole log.
+    """
     return subprocess.run(
         ["git", "-C", repo, *args], check=True,
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True, encoding="utf-8", errors="replace",
     ).stdout
 
 
