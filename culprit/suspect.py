@@ -140,11 +140,14 @@ def _parse_hunks(diff: str) -> List[Dict[str, Any]]:
 def _blame_lines(repo: str, rev: str, path: str, start: int, end: int) -> List[Dict[str, str]]:
     """Return per-line blame info for path@rev over [start, end].
 
-    ``-M -C`` follow moved/copied lines to the commit that wrote them. A repo's
-    ``.git-blame-ignore-revs`` (mass-reformat commits) is honored when present;
-    if git rejects the file (bad content, git < 2.23) fall back to plain blame.
+    Deliberately no -M/-C: they blame whoever wrote moved content, but when a
+    bug is introduced by a move/refactor the introducing commit is the mover —
+    benchmarking against Fixes:-trailer ground truth showed -M -C reduces
+    top-1 accuracy. A repo's ``.git-blame-ignore-revs`` (mass-reformat commits)
+    is honored when present; if git rejects the file (bad content, git < 2.23)
+    fall back to plain blame.
     """
-    base_args = ["blame", "-M", "-C", "--line-porcelain",
+    base_args = ["blame", "--line-porcelain",
                  "-L", "{},{}".format(start, end), rev, "--", path]
     attempts = []
     if os.path.exists(os.path.join(repo, ".git-blame-ignore-revs")):
