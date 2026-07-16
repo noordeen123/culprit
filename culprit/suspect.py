@@ -10,6 +10,7 @@ Produces a ranked suspect set; the reasoning layer turns it into the "why".
 from __future__ import annotations
 
 import datetime
+import os
 import re
 from typing import Any, Dict, List, Optional
 
@@ -137,14 +138,28 @@ def _parse_hunks(diff: str) -> List[Dict[str, Any]]:
 
 
 def _blame_lines(repo: str, rev: str, path: str, start: int, end: int) -> List[Dict[str, str]]:
-    """Return per-line blame info for path@rev over [start, end]."""
-    try:
-        out = _proc.git(
-            ["blame", "-M", "-C", "--line-porcelain",
-             "-L", "{},{}".format(start, end), rev, "--", path],
-            repo,
-        )
-    except _proc.ProcError:
+    """Return per-line blame info for path@rev over [start, end].
+
+    ``-M -C`` follow moved/copied lines to the commit that wrote them. A repo's
+    ``.git-blame-ignore-revs`` (mass-reformat commits) is honored when present;
+    if git rejects the file (bad content, git < 2.23) fall back to plain blame.
+    """
+    base_args = ["blame", "-M", "-C", "--line-porcelain",
+                 "-L", "{},{}".format(start, end), rev, "--", path]
+    attempts = []
+    if os.path.exists(os.path.join(repo, ".git-blame-ignore-revs")):
+        attempts.append(base_args[:1] +
+                        ["--ignore-revs-file", ".git-blame-ignore-revs"] +
+                        base_args[1:])
+    attempts.append(base_args)
+    out = None
+    for args in attempts:
+        try:
+            out = _proc.git(args, repo)
+            break
+        except _proc.ProcError:
+            continue
+    if out is None:
         return []
     lines: List[Dict[str, str]] = []
     cur: Dict[str, str] = {}
