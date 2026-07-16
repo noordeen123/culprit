@@ -10,6 +10,7 @@ Produces a ranked suspect set; the reasoning layer turns it into the "why".
 from __future__ import annotations
 
 import datetime
+import difflib
 import os
 import re
 from typing import Any, Dict, List, Optional
@@ -38,6 +39,72 @@ def _ranked(entries):
     ordered.sort(key=lambda e: (-e["lines"],
                                 1 if _MECHANICAL_RE.search(e.get("subject") or "") else 0))
     return ordered
+
+
+_CHAIN_BUDGET = 12   # max chained blame invocations per find_suspects call
+_CHAIN_DECAY = 0.5   # weight decay per hop for additively-added candidates
+
+
+def _commit_diff(repo: str, sha: str, files: List[str]) -> str:
+    """A commit's own diff restricted to `files` ('' on any failure)."""
+    try:
+        return _proc.git(["show", sha, "--format=", "--no-color", "--"] + list(files), repo)
+    except _proc.ProcError:
+        return ""
+
+
+def _is_mechanical(subject: Optional[str], diff_text: str) -> bool:
+    """True when a commit looks like refactor/reformat churn, not a logic change.
+
+    Either signal suffices: a mechanical-looking subject, or removed/added
+    lines that are near-identical after whitespace normalization.
+    """
+    if _MECHANICAL_RE.search(subject or ""):
+        return True
+    removed, added = [], []
+    for line in diff_text.splitlines():
+        if line.startswith("-") and not line.startswith("---"):
+            removed.append(" ".join(line[1:].split()))
+        elif line.startswith("+") and not line.startswith("+++"):
+            added.append(" ".join(line[1:].split()))
+    if not removed or not added:
+        return False
+    sm = difflib.SequenceMatcher(None, "\n".join(removed), "\n".join(added))
+    return sm.ratio() >= 0.8
+
+
+def _chain_from_diff(repo: str, sha: str, diff_text: str, hop: int,
+                     budget: List[int]) -> List[Dict[str, Any]]:
+    """Blame `sha`'s own removed lines at ``sha^``: the commits it edited over.
+
+    Returns candidate entries shaped like ``agg`` values plus ``chained_from``
+    and ``hop``. Pure-addition commits (no removed lines) are dead ends.
+    ``budget`` is a 1-element list so the caller's budget decrements persist.
+    """
+    parent = sha + "^"
+    out: Dict[str, Dict[str, Any]] = {}
+    for f in _parse_hunks(diff_text):
+        for (start, end) in f["removed_ranges"]:
+            if budget[0] <= 0:
+                return list(out.values())
+            budget[0] -= 1
+            for ln in _blame_lines(repo, parent, f["old_path"], start, end):
+                csha = ln.get("sha")
+                if not csha or csha == sha:
+                    continue
+                c = out.setdefault(csha, {
+                    "hash": csha,
+                    "author": ln.get("author"),
+                    "date": _iso(ln.get("author_time")),
+                    "subject": ln.get("summary"),
+                    "lines": 0,
+                    "files": set(),
+                    "chained_from": sha,
+                    "hop": hop,
+                })
+                c["lines"] += 1
+                c["files"].add(f["old_path"])
+    return list(out.values())
 
 
 def _common_depth(paths: List[str]) -> int:
@@ -240,7 +307,7 @@ def _pr_for_commit(repo: str, sha: str, upto: str) -> Optional[int]:
 
 
 def find_suspects(ctx: Dict[str, Any], repo: str, max_suspects: int = 5,
-                  trunk: Optional[str] = None) -> Dict[str, Any]:
+                  trunk: Optional[str] = None, chain: str = "off") -> Dict[str, Any]:
     """Blame the buggy lines at base and rank the introducing commits.
 
     ``trunk`` is the branch this work targets (e.g. ``origin/main``). When given,
@@ -248,6 +315,12 @@ def find_suspects(ctx: Dict[str, Any], repo: str, max_suspects: int = 5,
     history. A suspect that is NOT in the trunk is a commit on the current branch
     (part of this very change), so it is *not* a real "when it broke": the report
     flags that and points the user at their target branch instead.
+
+    ``chain`` looks one blame hop past the top suspects, whose own edits may
+    have absorbed blame from the true introducing commit: ``"additive"`` adds
+    hop-back candidates below the primaries (never dethrones); ``"passthrough"``
+    additionally transfers blame through absorbers detected as mechanical
+    (refactor/reformat), which can change the prime suspect.
     """
     base = ctx.get("base_sha") or ctx.get("base_ref")
     head = ctx.get("head_sha") or ctx.get("head_ref") or "HEAD"
@@ -295,7 +368,59 @@ def find_suspects(ctx: Dict[str, Any], repo: str, max_suspects: int = 5,
     if cluster_note:
         notes.append(cluster_note)
 
-    suspects = _ranked(agg.values())[:max_suspects]
+    ordered = _ranked(agg.values())
+
+    # Chained blame: the top suspects' own edits may have absorbed blame from
+    # the true introducing commit - look one hop past them.
+    extras: Dict[str, Dict[str, Any]] = {}
+    if chain in ("additive", "passthrough") and ordered:
+        budget = [_CHAIN_BUDGET]
+        transferred = False
+        for entry in ordered[:3]:
+            files = sorted(entry["files"])
+            diff_text = _commit_diff(repo, entry["hash"], files)
+            if not diff_text:
+                continue
+            cands = _chain_from_diff(repo, entry["hash"], diff_text, 1, budget)
+            if not cands:
+                continue
+            if chain == "passthrough" and _is_mechanical(entry.get("subject"), diff_text):
+                # Blame passes through the mechanical absorber at full weight.
+                entry["lines"] = max(0, entry["lines"] - sum(c["lines"] for c in cands))
+                transferred = True
+                for c in cands:
+                    tgt = agg.get(c["hash"])
+                    if tgt is not None:
+                        tgt["lines"] += c["lines"]
+                        tgt["files"] |= c["files"]
+                    else:
+                        agg[c["hash"]] = c
+                # Hop 2 (additive only) through the strongest hop-1 candidate
+                # when it, too, is mechanical.
+                best = max(cands, key=lambda c: c["lines"])
+                bdiff = _commit_diff(repo, best["hash"], sorted(best["files"]))
+                if bdiff and _is_mechanical(best.get("subject"), bdiff):
+                    for c2 in _chain_from_diff(repo, best["hash"], bdiff, 2, budget):
+                        if c2["hash"] not in agg and c2["hash"] not in extras:
+                            extras[c2["hash"]] = c2
+            else:
+                for c in cands:
+                    if c["hash"] in agg:
+                        continue  # already a primary suspect - leave it alone
+                    e = extras.setdefault(c["hash"], c)
+                    if e is not c:
+                        e["lines"] += c["lines"]
+                        e["files"] |= c["files"]
+        if transferred:
+            ordered = _ranked(agg.values())
+
+    suspects = ordered[:max_suspects]
+    if len(suspects) < max_suspects and extras:
+        tail = sorted(extras.values(),
+                      key=lambda e: (-(e["lines"] * _CHAIN_DECAY ** e["hop"]),
+                                     e.get("date") or ""))
+        suspects.extend(tail[:max_suspects - len(suspects)])
+
     for s in suspects:
         s["files"] = sorted(s["files"])
         s["pr_number"] = _pr_for_commit(repo, s["hash"], str(head))

@@ -133,3 +133,129 @@ def test_tiebreak_newer_commit_wins_among_equals(date_tie_repo):
     res = suspect.find_suspects(ctx, repo)
     assert len(res["suspects"]) == 2
     assert res["suspects"][0]["hash"] == newer
+
+
+@pytest.fixture
+def chained_repo(git_repo):
+    """A writes the buggy line; B mechanically refactors it; a branch fixes it.
+
+    Blame at base lands on B (the absorber). Chaining blames B's own removed
+    lines at B^ and finds A.
+    """
+    f = "core.py"
+    _write(git_repo, f,
+           "def total(items):\n"
+           "    result = 0\n"
+           "    for it in items:\n"
+           "        result += it.price - it.discount - it.discount  # BUG: discount twice\n"
+           "    return result\n")
+    _git(git_repo, "add", f)
+    _commit(git_repo, "feat: add total", "2023-01-01T00:00:00")
+    intro = _sha(git_repo)
+
+    _write(git_repo, f,
+           "def total(items):\n"
+           "    result = 0\n"
+           "    for item in items:\n"
+           "        result += item.price - item.discount - item.discount  # BUG: discount twice\n"
+           "    return result\n")
+    _git(git_repo, "add", f)
+    _commit(git_repo, "refactor: rename loop variable", "2024-01-01T00:00:00")
+    absorber = _sha(git_repo)
+
+    _git(git_repo, "checkout", "-b", "fix/total")
+    _write(git_repo, f,
+           "def total(items):\n"
+           "    result = 0\n"
+           "    for item in items:\n"
+           "        result += item.price - item.discount\n"
+           "    return result\n")
+    _git(git_repo, "add", f)
+    _commit(git_repo, "fix: apply discount once", "2024-06-01T00:00:00")
+    return git_repo, intro, absorber
+
+
+def test_chain_off_absorber_hides_intro(chained_repo):
+    repo, intro, absorber = chained_repo
+    ctx = pr_context.from_local(repo, base="main", head="fix/total")
+    res = suspect.find_suspects(ctx, repo, chain="off")
+    hashes = [s["hash"] for s in res["suspects"]]
+    assert res["suspects"][0]["hash"] == absorber
+    assert intro not in hashes  # today's behavior: A is invisible
+
+
+def test_chain_additive_surfaces_intro_below_absorber(chained_repo):
+    repo, intro, absorber = chained_repo
+    ctx = pr_context.from_local(repo, base="main", head="fix/total")
+    res = suspect.find_suspects(ctx, repo, chain="additive")
+    hashes = [s["hash"] for s in res["suspects"]]
+    assert res["suspects"][0]["hash"] == absorber  # additive never dethrones
+    assert intro in hashes
+    chained = next(s for s in res["suspects"] if s["hash"] == intro)
+    assert chained["chained_from"] == absorber
+    assert chained["hop"] == 1
+
+
+def test_chain_passthrough_makes_intro_prime(chained_repo):
+    repo, intro, absorber = chained_repo
+    ctx = pr_context.from_local(repo, base="main", head="fix/total")
+    res = suspect.find_suspects(ctx, repo, chain="passthrough")
+    # absorber subject matches the mechanical regex: blame passes through
+    assert res["suspects"][0]["hash"] == intro
+
+
+@pytest.fixture
+def substantive_absorber_repo(git_repo):
+    """Same shape, but B is a real logic change — passthrough must NOT transfer."""
+    f = "core.py"
+    _write(git_repo, f,
+           "def total(items):\n"
+           "    result = 0\n"
+           "    for it in items:\n"
+           "        result += it.price - it.discount - it.discount  # BUG: discount twice\n"
+           "    return result\n")
+    _git(git_repo, "add", f)
+    _commit(git_repo, "feat: add total", "2023-01-01T00:00:00")
+    intro = _sha(git_repo)
+
+    _write(git_repo, f,
+           "def total(items):\n"
+           "    result = 0\n"
+           "    for it in items:\n"
+           "        tax = it.price * 0.2 if it.taxable else 0.0\n"
+           "        result += it.price + tax - it.discount - it.discount  # BUG: discount twice\n"
+           "    return result\n")
+    _git(git_repo, "add", f)
+    _commit(git_repo, "feat: apply tax to taxable items", "2024-01-01T00:00:00")
+    absorber = _sha(git_repo)
+
+    _git(git_repo, "checkout", "-b", "fix/total")
+    _write(git_repo, f,
+           "def total(items):\n"
+           "    result = 0\n"
+           "    for it in items:\n"
+           "        tax = it.price * 0.2 if it.taxable else 0.0\n"
+           "        result += it.price + tax - it.discount\n"
+           "    return result\n")
+    _git(git_repo, "add", f)
+    _commit(git_repo, "fix: apply discount once", "2024-06-01T00:00:00")
+    return git_repo, intro, absorber
+
+
+def test_chain_passthrough_keeps_substantive_absorber_prime(substantive_absorber_repo):
+    repo, intro, absorber = substantive_absorber_repo
+    ctx = pr_context.from_local(repo, base="main", head="fix/total")
+    res = suspect.find_suspects(ctx, repo, chain="passthrough")
+    hashes = [s["hash"] for s in res["suspects"]]
+    assert res["suspects"][0]["hash"] == absorber  # no transfer: B is substantive
+    assert intro in hashes                          # but A still surfaces additively
+
+
+def test_chain_dead_ends_safely_on_file_creator(reformat_repo):
+    """Chaining from a file-creating commit finds no removed lines — no crash,
+    same prime as chain='off'."""
+    repo, intro = reformat_repo
+    ctx = pr_context.from_local(repo, base="main", head="fix/area")
+    res = suspect.find_suspects(ctx, repo, chain="passthrough")
+    assert res["suspects"]
+    assert res["suspects"][0]["hash"] == intro
