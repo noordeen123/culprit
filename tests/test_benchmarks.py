@@ -105,5 +105,5 @@ def test_run_cli_help_exits_zero():
 def test_run_case_passes_chain_mode(trailer_repo):
     repo, intro = trailer_repo
     fix = _cgit(repo, "rev-parse", "HEAD").strip()
-    # chain="off" must behave exactly like the default call
-    assert bench_run.run_case(repo, fix, chain="off") == bench_run.run_case(repo, fix)
+    # the engine default is chain="additive"; an explicit "additive" must match it
+    assert bench_run.run_case(repo, fix, chain="additive") == bench_run.run_case(repo, fix)

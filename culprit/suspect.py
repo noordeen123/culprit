@@ -311,7 +311,7 @@ def _pr_for_commit(repo: str, sha: str, upto: str) -> Optional[int]:
 
 
 def find_suspects(ctx: Dict[str, Any], repo: str, max_suspects: int = 5,
-                  trunk: Optional[str] = None, chain: str = "off") -> Dict[str, Any]:
+                  trunk: Optional[str] = None, chain: str = "additive") -> Dict[str, Any]:
     """Blame the buggy lines at base and rank the introducing commits.
 
     ``trunk`` is the branch this work targets (e.g. ``origin/main``). When given,
@@ -324,7 +324,9 @@ def find_suspects(ctx: Dict[str, Any], repo: str, max_suspects: int = 5,
     have absorbed blame from the true introducing commit: ``"additive"`` adds
     hop-back candidates below the primaries (never dethrones); ``"passthrough"``
     additionally transfers blame through absorbers detected as mechanical
-    (refactor/reformat), which can change the prime suspect.
+    (refactor/reformat), which can change the prime suspect. The "additive" default
+    was chosen by benchmark: see benchmarks/ (50 Fixes:-trailer ground-truth cases;
+    numbers in this commit's message).
     """
     base = ctx.get("base_sha") or ctx.get("base_ref")
     head = ctx.get("head_sha") or ctx.get("head_ref") or "HEAD"
