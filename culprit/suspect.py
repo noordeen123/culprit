@@ -22,9 +22,13 @@ MAX_FILES = 150  # safety cap on how many changed files to blame in one run
 # Commits that look like mechanical churn (refactors, reformats, renames)
 # rather than logic changes. Used to (a) break ranking ties against them and
 # (b) detect blame-absorbing commits worth chaining through.
+#
+# Deliberately excludes "move": commits that move code frequently ARE the
+# bug's origin (the -M -C lesson) — benchmarking showed matching "move"
+# demotes true root-cause commits.
 _MECHANICAL_RE = re.compile(
     r"(?i)\b(refactor|reformat|restyle|style|indent|whitespace|typo|"
-    r"clean\s?up|rename|move|reorder|simplify)\b")
+    r"clean\s?up|rename|reorder|simplify)\b")
 
 
 def _ranked(entries):
