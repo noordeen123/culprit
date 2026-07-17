@@ -100,3 +100,10 @@ def test_run_cli_help_exits_zero():
         [sys.executable, os.path.join(root, "benchmarks", "run.py"), "--help"],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     assert r.returncode == 0
+
+
+def test_run_case_passes_chain_mode(trailer_repo):
+    repo, intro = trailer_repo
+    fix = _cgit(repo, "rev-parse", "HEAD").strip()
+    # chain="off" must behave exactly like the default call
+    assert bench_run.run_case(repo, fix, chain="off") == bench_run.run_case(repo, fix)

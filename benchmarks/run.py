@@ -35,16 +35,20 @@ def score_case(suspects, expected, top=5):
     return "miss"
 
 
-def run_case(repo_path, fix_sha):
+def run_case(repo_path, fix_sha, chain=None):
     """Run the engine exactly as a user analyzing that fix commit would."""
     ctx = pr_context.from_local(repo_path, base=fix_sha + "^", head=fix_sha)
-    return suspect.find_suspects(ctx, repo_path)["suspects"]
+    kw = {} if chain is None else {"chain": chain}
+    return suspect.find_suspects(ctx, repo_path, **kw)["suspects"]
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--dataset", default=os.path.join(_HERE, "dataset.jsonl"))
     ap.add_argument("--out", default=os.path.join(_HERE, "results.json"))
+    ap.add_argument("--chain", default=None,
+                    choices=["off", "additive", "passthrough"],
+                    help="suspect-chaining mode (default: engine default)")
     args = ap.parse_args()
 
     with open(args.dataset) as fh:
@@ -55,7 +59,7 @@ def main():
         row = dict(case)
         try:
             repo_path = ensure_clone(case["repo"])
-            suspects = run_case(repo_path, case["fix_sha"])
+            suspects = run_case(repo_path, case["fix_sha"], chain=args.chain)
             row["outcome"] = score_case(suspects, case["expected"])
             row["prime"] = suspects[0]["hash"] if suspects else None
         except Exception as exc:  # per-case failures never abort the run
@@ -74,6 +78,7 @@ def main():
         "in_set_rate": round((counts["top1"] + counts["in_set"]) / scored, 3)
                        if scored else None,
         "engine_rev": git(os.path.dirname(_HERE), "rev-parse", "HEAD").strip(),
+        "chain": args.chain,
     }
     with open(args.out, "w") as fh:
         json.dump({"summary": summary, "results": results}, fh, indent=2)
