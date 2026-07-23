@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import argparse
 import datetime
-import fnmatch
 import json
 import os
 import sys
@@ -63,10 +62,6 @@ def _run(ctx: Dict[str, Any], repo: str, force: Optional[str] = None,
          coverage_path: Optional[str] = None) -> Dict[str, Any]:
     """Run the deterministic pipeline over an already-resolved context."""
     globs = profile.source_globs(repo)
-    # Filter changed_files based on the profile's source_globs.
-    if ctx.get("changed_files"):
-        ctx["changed_files"] = [f for f in ctx["changed_files"]
-                                if any(fnmatch.fnmatch(f, g) for g in globs)]
     cls = classify.classify(ctx)
     if force:
         # Reflect the override in the displayed classification, not just the path.
