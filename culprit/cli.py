@@ -150,10 +150,31 @@ def _serve_cmd(argv: list) -> int:
     return serve.run(repo=a.repo, host=a.host, port=a.port, open_browser=not a.no_open)
 
 
+def _init_cmd(argv: list) -> int:
+    ip = argparse.ArgumentParser(prog="rca init",
+                                 description="Detect and write .culprit/profile.json "
+                                             "(engine file-detection config).")
+    ip.add_argument("--repo", default=".", help="repo path (default: cwd)")
+    a = ip.parse_args(argv)
+    repo = os.path.abspath(os.path.expanduser(a.repo))
+    path = os.path.join(repo, profile.PROFILE_PATH)
+    if os.path.exists(path) and profile.load(repo) is None:
+        sys.stderr.write("warning: existing {} is unparseable; overwriting with "
+                         "empty overrides\n".format(profile.PROFILE_PATH))
+    detected = profile.detect(repo)
+    profile.write(repo, detected)
+    print("wrote {}".format(os.path.join(profile.PROFILE_PATH)))
+    print("  source_globs: {}".format(", ".join(detected["source_globs"])))
+    print("  test_globs:   {}".format(", ".join(detected["test_globs"]) or "(none)"))
+    return 0
+
+
 def main(argv: Optional[list] = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv and argv[0] == "serve":
         return _serve_cmd(argv[1:])
+    if argv and argv[0] == "init":
+        return _init_cmd(argv[1:])
 
     p = argparse.ArgumentParser(prog="rca", description="Root-cause analysis for a PR or branch.")
     p.add_argument("pr", nargs="?", type=int, help="PR number (optional)")
@@ -201,6 +222,9 @@ def main(argv: Optional[list] = None) -> int:
         args.mode = "harness"
 
     repo = os.path.abspath(os.path.expanduser(args.repo))
+    _stale = profile.staleness_note(repo)
+    if _stale:
+        sys.stderr.write("note: {}\n".format(_stale))
     pr = args.pr_flag if args.pr_flag is not None else args.pr
 
     # Base resolution (local mode): --last forces latest commit; else explicit
