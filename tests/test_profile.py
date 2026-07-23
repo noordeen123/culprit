@@ -126,3 +126,38 @@ def test_staleness_note(py_repo, monkeypatch):
         _commit_all(py_repo, "c{}".format(i))
     note = profile.staleness_note(py_repo)
     assert note and "culprit init" in note
+
+
+def test_load_none_when_version_not_numeric(git_repo):
+    os.makedirs(os.path.join(git_repo, ".culprit"))
+    with open(os.path.join(git_repo, profile.PROFILE_PATH), "w") as fh:
+        json.dump({"version": "bad", "detected": {"source_globs": ["*.py"]},
+                   "overrides": {}}, fh)
+    assert profile.load(git_repo) is None
+    assert profile.source_globs(git_repo) == list(DEFAULT_SOURCE_GLOBS)
+
+
+def test_empty_source_globs_treated_as_absent(git_repo):
+    os.makedirs(os.path.join(git_repo, ".culprit"))
+    # empty override falls through to detected; empty detected falls to DEFAULT
+    with open(os.path.join(git_repo, profile.PROFILE_PATH), "w") as fh:
+        json.dump({"version": 1,
+                   "detected": {"source_globs": ["*.py"]},
+                   "overrides": {"source_globs": []}}, fh)
+    assert profile.source_globs(git_repo) == ["*.py"]
+    with open(os.path.join(git_repo, profile.PROFILE_PATH), "w") as fh:
+        json.dump({"version": 1,
+                   "detected": {"source_globs": []},
+                   "overrides": {"source_globs": []}}, fh)
+    assert profile.source_globs(git_repo) == list(DEFAULT_SOURCE_GLOBS)
+
+
+def test_staleness_note_none_when_head_not_resolvable(git_repo):
+    os.makedirs(os.path.join(git_repo, ".culprit"))
+    with open(os.path.join(git_repo, profile.PROFILE_PATH), "w") as fh:
+        json.dump({"version": 1,
+                   "detected": {"generated_head": "0" * 40, "source_globs": ["*.py"],
+                                "test_globs": []},
+                   "overrides": {}}, fh)
+    # a nonexistent generated_head -> merge-base --is-ancestor errors -> None
+    assert profile.staleness_note(git_repo) is None

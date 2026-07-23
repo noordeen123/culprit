@@ -88,7 +88,10 @@ def load(repo: str) -> Optional[Dict[str, Any]]:
             data = json.load(fh)
     except (IOError, OSError, ValueError):
         return None
-    if not isinstance(data, dict) or data.get("version", VERSION) > VERSION:
+    if not isinstance(data, dict):
+        return None
+    ver = data.get("version", VERSION)
+    if not isinstance(ver, (int, float)) or isinstance(ver, bool) or ver > VERSION:
         return None
     return data
 
