@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import fnmatch
 import json
 import os
 import sys
@@ -32,6 +33,7 @@ from . import (
     lifecycle,
     owners,
     pr_context,
+    profile,
     reasoning,
     report,
     risk,
@@ -60,6 +62,11 @@ def _trunk(repo: str) -> Optional[str]:
 def _run(ctx: Dict[str, Any], repo: str, force: Optional[str] = None,
          coverage_path: Optional[str] = None) -> Dict[str, Any]:
     """Run the deterministic pipeline over an already-resolved context."""
+    globs = profile.source_globs(repo)
+    # Filter changed_files based on the profile's source_globs.
+    if ctx.get("changed_files"):
+        ctx["changed_files"] = [f for f in ctx["changed_files"]
+                                if any(fnmatch.fnmatch(f, g) for g in globs)]
     cls = classify.classify(ctx)
     if force:
         # Reflect the override in the displayed classification, not just the path.
@@ -70,20 +77,20 @@ def _run(ctx: Dict[str, Any], repo: str, force: Optional[str] = None,
 
     bugfix = feature = None
     if verdict == "feature":
-        feature = blast_radius.analyze(ctx, repo)
+        feature = blast_radius.analyze(ctx, repo, source_globs=globs)
     else:
         # bugfix or unknown -> run RCA (the more actionable default)
         bugfix = suspect.find_suspects(ctx, repo, trunk=_trunk(repo))
         # Attach the line-evolution timeline (origin -> ... -> suspect -> fix).
         bugfix["timeline"] = evolution.build_timeline(ctx, repo, bugfix.get("suspects", []))
         # Did the touched files have any tests? (why the bug slipped through)
-        bugfix["test_gap"] = blast_radius.test_gap(ctx.get("changed_files", []), repo)
+        bugfix["test_gap"] = blast_radius.test_gap(ctx.get("changed_files", []), repo, source_globs=globs)
         # Intent of the suspect/origin, the bug's lifecycle, and fix completeness.
         if bugfix.get("suspects"):
             bugfix["suspects"][0]["intent"] = intent.enrich(repo, ctx, bugfix["suspects"][0])
         intent.enrich_origin(repo, ctx, bugfix["timeline"])
         bugfix["lifecycle"] = lifecycle.build(repo, ctx, bugfix.get("suspects", []))
-        bugfix["completeness"] = completeness.assess(ctx, repo, bugfix.get("suspects", []))
+        bugfix["completeness"] = completeness.assess(ctx, repo, bugfix.get("suspects", []), source_globs=globs)
 
     # Optional coverage precision: which changed lines are actually uncovered.
     cov = None
@@ -96,7 +103,7 @@ def _run(ctx: Dict[str, Any], repo: str, force: Optional[str] = None,
 
     result = report.build(ctx, cls, bugfix, feature, coverage=cov)
     # Test impact: which existing tests to run for this change (any verdict).
-    result["test_impact"] = testimpact.select(ctx, repo)
+    result["test_impact"] = testimpact.select(ctx, repo, source_globs=globs)
     # Predictive signals: co-change ("did you forget X?") + reviewer suggestions.
     changed = ctx.get("changed_files", [])
     suspects = (bugfix or {}).get("suspects", [])

@@ -64,3 +64,21 @@ def test_report_skeleton_renders(bug_repo):
     md = report.markdown_skeleton(result)
     assert "# RCA:" in md
     assert "Suspect set" in md
+
+
+def test_profile_narrows_source_globs_in_pipeline(bug_repo):
+    # Add a vendored .js that references the changed module's name; without a
+    # profile it shows as a dependent/importer, with a *.py-only profile it does not.
+    from culprit import profile
+    with open(os.path.join(bug_repo, "vendor.js"), "w") as fh:
+        fh.write("import app from './app'\n")
+    _git(bug_repo, "add", "vendor.js")
+    _git(bug_repo, "commit", "-m", "chore: vendored js")
+
+    # Write a profile that narrows to python only.
+    profile.write(bug_repo, {"generated_head": "", "source_globs": ["*.py"],
+                             "test_globs": []})
+    res = cli.analyze(bug_repo, pr=None, base="main", head="fix/area")
+    # The vendored js must never appear among selected tests / dependents.
+    blob = repr(res)
+    assert "vendor.js" not in blob
