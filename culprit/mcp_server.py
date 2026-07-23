@@ -35,6 +35,7 @@ from . import (
     config,
     evolution,
     pr_context,
+    profile,
     suspect,
     testimpact,
 )
@@ -128,7 +129,7 @@ def get_blast_radius(repo: str, base: str = None, head: str = None) -> dict:
     Returns: {dependents: {...}, covering_tests: [...], high_risk: [...], notes: [...]}
     """
     ctx = _resolve(repo, base, head)
-    return blast_radius.analyze(ctx, repo)
+    return blast_radius.analyze(ctx, repo, source_globs=profile.source_globs(repo))
 
 
 @mcp.tool()
@@ -184,7 +185,7 @@ def check_completeness(repo: str, base: str = None, head: str = None) -> dict:
               adds_test: bool, is_revert: bool, notes: [...]}
     """
     ctx = _resolve(repo, base, head)
-    return completeness.assess(ctx, repo, [])
+    return completeness.assess(ctx, repo, [], source_globs=profile.source_globs(repo))
 
 
 @mcp.tool()
@@ -197,7 +198,7 @@ def get_test_impact(repo: str, base: str = None, head: str = None) -> dict:
     Returns: {tests: [...], by_test: {test: [reasons]}, notes: [...]}
     """
     ctx = _resolve(repo, base, head)
-    return testimpact.select(ctx, repo)
+    return testimpact.select(ctx, repo, source_globs=profile.source_globs(repo))
 
 
 @mcp.tool()
