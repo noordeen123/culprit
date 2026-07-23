@@ -202,6 +202,9 @@ def test_chain_passthrough_makes_intro_prime(chained_repo):
     res = suspect.find_suspects(ctx, repo, chain="passthrough")
     # absorber subject matches the mechanical regex: blame passes through
     assert res["suspects"][0]["hash"] == intro
+    # promoted to a full-weight primary - not rendered as a hop-back guess
+    assert "chained_from" not in res["suspects"][0]
+    assert res["suspects"][0]["weight"] is not None
 
 
 @pytest.fixture

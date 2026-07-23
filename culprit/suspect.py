@@ -400,6 +400,11 @@ def find_suspects(ctx: Dict[str, Any], repo: str, max_suspects: int = 5,
                         tgt["lines"] += c["lines"]
                         tgt["files"] |= c["files"]
                     else:
+                        # Promoted to a full-weight primary: shed the chained
+                        # metadata so the report treats it as a direct hit, not
+                        # a hop-back guess.
+                        c.pop("chained_from", None)
+                        c.pop("hop", None)
                         agg[c["hash"]] = c
                 # Hop 2 (added to the additive tier) through the strongest hop-1 candidate
                 # when it, too, is mechanical.
