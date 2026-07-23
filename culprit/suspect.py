@@ -279,7 +279,8 @@ def _iso(epoch: Optional[str]) -> Optional[str]:
     if not epoch:
         return None
     try:
-        return datetime.datetime.utcfromtimestamp(int(epoch)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return datetime.datetime.fromtimestamp(
+            int(epoch), datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     except (ValueError, TypeError):
         return None
 

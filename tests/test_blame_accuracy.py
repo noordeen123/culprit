@@ -262,3 +262,21 @@ def test_chain_dead_ends_safely_on_file_creator(reformat_repo):
     res = suspect.find_suspects(ctx, repo, chain="passthrough")
     assert res["suspects"]
     assert res["suspects"][0]["hash"] == intro
+
+
+def test_is_mechanical_similarity_path_fires_without_keyword():
+    """A subject with no mechanical keyword still counts as mechanical when the
+    removed and added lines are near-identical (the difflib similarity path)."""
+    subject = "adjust parameter"  # no refactor/rename/etc. keyword
+    diff = ("-    return compute_total(items, discount_rate)\n"
+            "+    return compute_total(items, discount_ratio)\n")
+    assert suspect._is_mechanical(subject, diff) is True
+
+
+def test_is_mechanical_false_for_substantive_change_without_keyword():
+    """No keyword and genuinely different lines: not mechanical."""
+    subject = "add tax handling"
+    diff = ("-    x = 1\n"
+            "+    tax = price * rate + surcharge - rebate\n"
+            "+    total = base + tax\n")
+    assert suspect._is_mechanical(subject, diff) is False
