@@ -13,7 +13,7 @@ import datetime
 import difflib
 import os
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 from . import _proc
 
@@ -31,7 +31,7 @@ _MECHANICAL_RE = re.compile(
     r"clean\s?up|rename|reorder|simplify)\b")
 
 
-def _ranked(entries):
+def _ranked(entries: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Rank suspect entries deterministically.
 
     Descending by blamed line count; on ties a mechanical-looking subject
@@ -401,7 +401,7 @@ def find_suspects(ctx: Dict[str, Any], repo: str, max_suspects: int = 5,
                         tgt["files"] |= c["files"]
                     else:
                         agg[c["hash"]] = c
-                # Hop 2 (additive only) through the strongest hop-1 candidate
+                # Hop 2 (added to the additive tier) through the strongest hop-1 candidate
                 # when it, too, is mechanical.
                 best = max(cands, key=lambda c: c["lines"])
                 bdiff = _commit_diff(repo, best["hash"], sorted(best["files"]))
@@ -422,16 +422,16 @@ def find_suspects(ctx: Dict[str, Any], repo: str, max_suspects: int = 5,
 
     suspects = ordered[:max_suspects]
     if len(suspects) < max_suspects and extras:
-        tail = sorted(extras.values(),
-                      key=lambda e: (-(e["lines"] * _CHAIN_DECAY ** e["hop"]),
-                                     e.get("date") or ""))
+        tail = sorted(extras.values(), key=lambda e: e.get("date") or "", reverse=True)
+        tail.sort(key=lambda e: -(e["lines"] * _CHAIN_DECAY ** e["hop"]))
         suspects.extend(tail[:max_suspects - len(suspects)])
 
     for s in suspects:
         s["files"] = sorted(s["files"])
         s["pr_number"] = _pr_for_commit(repo, s["hash"], str(head))
         s["short"] = s["hash"][:10]
-        s["weight"] = round(s["lines"] / blamed_lines, 2) if blamed_lines else 0.0
+        s["weight"] = (None if s.get("chained_from")
+                       else round(s["lines"] / blamed_lines, 2) if blamed_lines else 0.0)
         s["in_base"] = _is_ancestor(repo, s["hash"], trunk) if trunk else None
 
     # The prime suspect being a branch-local commit means the blame landed on this
