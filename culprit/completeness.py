@@ -44,6 +44,23 @@ _KEYWORDS = {
     "else", "for", "while", "switch", "case", "true", "false", "null", "none",
 }
 
+# Names that must never be treated as a "symbol" even when the repo defines one:
+# language builtins, ubiquitous container/str methods, and common test/log noise.
+# The repo-defined check (_is_defined) is the real filter; this list only catches
+# project methods that happen to share a builtin-like name (e.g. `def get`).
+_NON_SYMBOLS = frozenset({
+    "get", "set", "any", "all", "len", "print", "str", "int", "float", "bool",
+    "list", "dict", "tuple", "open", "range", "enumerate", "zip", "map", "filter",
+    "sorted", "reversed", "min", "max", "sum", "abs", "round", "isinstance",
+    "issubclass", "hasattr", "getattr", "setattr", "format", "join", "split",
+    "strip", "rstrip", "lstrip", "replace", "startswith", "endswith", "append",
+    "extend", "insert", "pop", "keys", "values", "items", "setdefault", "update",
+    "add", "remove", "super", "repr", "type", "vars", "dir", "next", "iter",
+    "callable",
+    "require", "assert", "expect", "describe", "it", "test", "console", "log",
+    "printf", "println", "new",
+})
+
 _MAX_SYMBOLS = 5
 _MAX_REFS = 20
 
@@ -91,8 +108,7 @@ def _symbols_from_diff(diff: str, source_globs: List[str]) -> List[str]:
                 name = cm.group(1)
                 if name not in _KEYWORDS and name not in called:
                     called.append(name)
-    out = headings + [c for c in called if c not in headings]
-    return out[:_MAX_SYMBOLS]
+    return headings + [c for c in called if c not in headings]
 
 
 def _refs(repo: str, token: str, source_globs: List[str]) -> List[str]:
@@ -109,6 +125,24 @@ def _refs(repo: str, token: str, source_globs: List[str]) -> List[str]:
     args = ["grep", "-l", "-I", "-E", "-e", pat, "--"] + source_globs
     out = _proc.git(args, repo, check=False)
     return [f for f in out.splitlines() if f.strip()]
+
+
+def _is_defined(repo: str, token: str, source_globs: List[str]) -> bool:
+    """True if the repo defines ``token`` (def/class/func/... form) in a source file.
+
+    POSIX-safe ``git grep -E`` (git grep has no \\b, so boundaries are
+    ``[^A-Za-z0-9_]``), same style as ``_refs``. Restricting symbols to names the
+    repo actually defines drops builtins and library calls the fix merely *uses*
+    (``isinstance``, ``ArgumentParser``, ...).
+    """
+    if not token:
+        return False
+    tok = re.escape(token)
+    pat = (r"(def|class|function|func|fn|interface|struct|type|sub)"
+           r"[[:space:]]+{}([^A-Za-z0-9_]|$)".format(tok))
+    args = ["grep", "-l", "-I", "-E", "-e", pat, "--"] + source_globs
+    out = _proc.git(args, repo, check=False)
+    return bool(out.strip())
 
 
 def _diff_lines(diff: str, sign: str) -> set:
@@ -131,7 +165,10 @@ def assess(ctx: Dict[str, Any], repo: str, suspects: List[Dict[str, Any]],
     notes: List[str] = []
 
     # Other references to the changed symbols that the fix did not touch.
-    symbols = _symbols_from_diff(diff, globs)
+    # Keep only names the repo actually defines and that aren't builtins/methods,
+    # so "other call sites" reflects real project symbols, not `get`/`isinstance`.
+    symbols = [s for s in _symbols_from_diff(diff, globs)
+               if s.lower() not in _NON_SYMBOLS and _is_defined(repo, s, globs)][:_MAX_SYMBOLS]
     other_call_sites: Dict[str, List[str]] = {}
     untouched = set()
     for sym in symbols:

@@ -130,3 +130,60 @@ def test_assess_respects_source_globs(tmp_path):
     js_narrow = any("vendor.js" in f for fs in narrow["other_call_sites"].values() for f in fs)
     assert js_wide is True     # default globs include *.js
     assert js_narrow is False  # narrowed to *.py -> js reference excluded
+
+
+def _seed(repo):
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-m", "seed")
+
+
+def test_assess_excludes_builtin_calls_from_symbols(git_repo):
+    with open(os.path.join(git_repo, "app.py"), "w") as fh:
+        fh.write("def compute_total(items):\n"
+                 "    return sum(i.price for i in items)\n")
+    _seed(git_repo)
+    diff = ("diff --git a/app.py b/app.py\n"
+            "--- a/app.py\n+++ b/app.py\n"
+            "@@ -1,2 +1,2 @@ def compute_total(items):\n"
+            "-    return sum(i.price for i in items)\n"
+            "+    return sum(i.price for i in items if isinstance(i.price, int))\n")
+    ctx = {"diff": diff, "changed_files": ["app.py"]}
+    res = completeness.assess(ctx, git_repo, [], source_globs=["*.py"])
+    assert "compute_total" in res["symbols"]           # enclosing def, repo-defined
+    for noise in ("sum", "isinstance", "len", "any"):   # builtins / not repo-defined
+        assert noise not in res["symbols"]
+
+
+def test_assess_keeps_repo_defined_helper_and_finds_call_sites(git_repo):
+    with open(os.path.join(git_repo, "lib.py"), "w") as fh:
+        fh.write("def compute_total(items):\n    return 0\n")
+    with open(os.path.join(git_repo, "caller.py"), "w") as fh:
+        fh.write("from lib import compute_total\ncompute_total([])\n")
+    _seed(git_repo)
+    # A fix (new file) that calls the repo-defined helper.
+    diff = ("diff --git a/app.py b/app.py\n"
+            "--- /dev/null\n+++ b/app.py\n"
+            "@@ -0,0 +1,2 @@\n"
+            "+from lib import compute_total\n"
+            "+compute_total([1])\n")
+    ctx = {"diff": diff, "changed_files": ["app.py"]}
+    res = completeness.assess(ctx, git_repo, [], source_globs=["*.py"])
+    assert "compute_total" in res["symbols"]
+    sites = res["other_call_sites"].get("compute_total", [])
+    assert any("caller.py" in f for f in sites)
+
+
+def test_assess_drops_builtin_named_project_method(git_repo):
+    # The repo DEFINES `get`, but `get` is on the denylist -> not a symbol.
+    with open(os.path.join(git_repo, "store.py"), "w") as fh:
+        fh.write("def get(key):\n    return key\n")
+    with open(os.path.join(git_repo, "other.py"), "w") as fh:
+        fh.write("from store import get\nget('x')\n")
+    _seed(git_repo)
+    diff = ("diff --git a/store.py b/store.py\n"
+            "--- a/store.py\n+++ b/store.py\n"
+            "@@ -1,2 +1,2 @@ def get(key):\n"
+            "-    return key\n+    return key or 'default'\n")
+    ctx = {"diff": diff, "changed_files": ["store.py"]}
+    res = completeness.assess(ctx, git_repo, [], source_globs=["*.py"])
+    assert "get" not in res["symbols"]                  # denylist wins over repo-defined
