@@ -19,3 +19,5 @@ output/
 *.swp
 .venv/
 venv/
+superpowers
+benchmarks
