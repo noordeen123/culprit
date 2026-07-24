@@ -107,7 +107,7 @@ def test_parse_sentry_skips_frames_without_filename():
 
 
 def test_parse_falls_through_to_regex_for_non_sentry_json():
-    # Valid JSON but not a Sentry event — should fall through to the regex path.
+    # Valid JSON but not a Sentry event; should fall through to the regex path.
     import json
     text = json.dumps({"some": "other json"})
     frames = trace.parse(text)

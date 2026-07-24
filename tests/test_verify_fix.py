@@ -1,4 +1,4 @@
-"""Tests for culprit.verify_fix — fix verification before committing."""
+"""Tests for culprit.verify_fix: fix verification before committing."""
 import os
 import tempfile
 
@@ -89,7 +89,7 @@ def test_partial_verdict_when_call_site_missed(multi_call_repo):
 
 def test_complete_verdict_with_test(multi_call_repo):
     res = verify_fix.assess(multi_call_repo, _COMPLETE_WITH_TEST_DIFF)
-    # Both call sites patched and a test added — complete or partial (util.py defines scale too)
+    # Both call sites patched and a test added; complete or partial (util.py defines scale too)
     assert res["verdict"] in ("complete", "partial")
     assert res["adds_test"] is True
     # Adding a test keeps risk low or medium at worst

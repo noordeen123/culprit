@@ -76,7 +76,7 @@ def _commit(repo, msg, when):
 
 @pytest.fixture
 def tie_repo(git_repo):
-    """Two suspects own one buggy line each — an exact line-count tie.
+    """Two suspects own one buggy line each, an exact line-count tie.
 
     The reformat commit is deliberately NEWER, so date order alone would rank
     it first: the test proves the reformat demotion, not date luck.
@@ -109,7 +109,7 @@ def test_tiebreak_reformat_commit_loses(tie_repo):
 
 @pytest.fixture
 def date_tie_repo(git_repo):
-    """Two non-reformat suspects tied on lines — newer commit wins."""
+    """Two non-reformat suspects tied on lines, newer commit wins."""
     f = "calc.py"
     _write(git_repo, f, "A = 1  # BUG\n")
     _git(git_repo, "add", f)
@@ -209,7 +209,7 @@ def test_chain_passthrough_makes_intro_prime(chained_repo):
 
 @pytest.fixture
 def substantive_absorber_repo(git_repo):
-    """Same shape, but B is a real logic change — passthrough must NOT transfer."""
+    """Same shape, but B is a real logic change; passthrough must NOT transfer."""
     f = "core.py"
     _write(git_repo, f,
            "def total(items):\n"
@@ -255,7 +255,7 @@ def test_chain_passthrough_keeps_substantive_absorber_prime(substantive_absorber
 
 
 def test_chain_dead_ends_safely_on_file_creator(reformat_repo):
-    """Chaining from a file-creating commit finds no removed lines — no crash,
+    """Chaining from a file-creating commit finds no removed lines, no crash,
     same prime as chain='off'."""
     repo, intro = reformat_repo
     ctx = pr_context.from_local(repo, base="main", head="fix/area")

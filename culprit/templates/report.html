@@ -411,7 +411,7 @@
     var bannerClusterNote = (D.bugfix.notes||[]).find(function(n){ return n.indexOf('distinct subsystem')!==-1; });
     var b = el('<div class="banner"'+(bannerClusterNote?' style="border-color:var(--hot)"':'')+' ></div>');
     b.innerHTML = '<span class="lead">⚠ prime suspect</span>'+
-      (bannerClusterNote ? '<span class="hot" style="margin-left:8px;font-size:.8em"> multi-change branch — may be a false positive</span>' : '')+
+      (bannerClusterNote ? '<span class="hot" style="margin-left:8px;font-size:.8em"> multi-change branch, may be a false positive</span>' : '')+
       linkHash(p0.short, p0.hash)+linkPR(p0.pr_number)+' - '+esc(p0.subject||'')+
       ' <span class="muted">('+esc(p0.author||'')+')</span>'+
       (age ? '<br><span class="muted">Introduced ~<b style="color:var(--txt)">'+esc(age)+

@@ -78,7 +78,7 @@ def build(repo: str, ctx: Dict[str, Any], suspects: List[Dict[str, Any]]) -> Dic
         authors_span = len({a for a in authors if a.strip()}) or None
 
     # Recurrence: how many prior commits to the fixed files were themselves bug-fixes.
-    # Use the files actually changed in the diff (ctx["changed_files"]) — those contain
+    # Use the files actually changed in the diff (ctx["changed_files"]); those contain
     # the buggy code regardless of which file the prime suspect happened to touch.
     # Fall back to the prime suspect's file if the diff file list is unavailable.
     recurrence = None

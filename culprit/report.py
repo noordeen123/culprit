@@ -68,7 +68,6 @@ def markdown_skeleton(result: Dict[str, Any]) -> str:
         lc = b.get("lifecycle") or {}
         cp = b.get("completeness") or {}
 
-        # --- Introduced: what the author was trying to do when the bug went in ---
         lines.append("## Introduced")
         if b.get("origin_on_branch") and prime:
             lines.append("> **When it broke: not determined from this base.** The blamed commit "
@@ -104,7 +103,6 @@ def markdown_skeleton(result: Dict[str, Any]) -> str:
             lines.append("> {}".format(note))
         lines.append("")
 
-        # --- Lived: how long it survived and how far it spread ---
         lines.append("## Lived")
         if lc.get("releases"):
             count = lc.get("total_releases") or len(lc["releases"])
@@ -121,7 +119,6 @@ def markdown_skeleton(result: Dict[str, Any]) -> str:
             lines.append("> {}".format(note))
         lines.append("")
 
-        # --- Broke: the ranked suspect set (and bisect, if run) ---
         lines.append("## Suspect set")
         for i, s in enumerate(suspects, 1):
             pr = " (PR #{})".format(s["pr_number"]) if s.get("pr_number") else ""
@@ -150,7 +147,6 @@ def markdown_skeleton(result: Dict[str, Any]) -> str:
                      "that broke it -> contrast the stated intent above with the actual effect)_")
         lines.append("")
 
-        # --- Fixed: is the root cause fully addressed? ---
         lines.append("## Is the fix complete?")
         if cp.get("untouched_count"):
             lines.append("- {} other reference(s) to the changed symbol(s) {} were not "
@@ -162,7 +158,6 @@ def markdown_skeleton(result: Dict[str, Any]) -> str:
         lines.append("_(reasoning: does the fix address the root cause or just one symptom?)_")
         lines.append("")
 
-        # --- Prevent: the test gap that let it through ---
         tg = b.get("test_gap") or {}
         lines.append("## Prevent")
         if tg.get("untested"):
