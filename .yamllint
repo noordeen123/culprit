@@ -1,0 +1,15 @@
+# yamllint config, tuned for GitHub Actions workflows.
+extends: default
+
+# Third-party repos cloned as benchmark fixtures are not ours to lint.
+ignore: |
+  benchmarks/.cache/
+
+rules:
+  # Workflow files conventionally omit the leading "---".
+  document-start: disable
+  # "on:" is the Actions trigger key, not a YAML boolean.
+  truthy:
+    check-keys: false
+  line-length:
+    max: 120

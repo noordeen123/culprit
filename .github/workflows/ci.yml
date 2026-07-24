@@ -2,6 +2,7 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 jobs:
@@ -34,10 +35,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install ruff
-        run: pip install ruff
-      - name: Lint
+      - name: Install linters
+        run: pip install ruff yamllint
+      - name: Ruff
         run: ruff check .
+      - name: yamllint
+        run: yamllint .
 
   test-mcp:
     runs-on: ubuntu-latest
