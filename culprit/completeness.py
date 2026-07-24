@@ -14,7 +14,7 @@ from __future__ import annotations
 import fnmatch
 import os
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from . import _proc
 from .blast_radius import DEFAULT_SOURCE_GLOBS, DEFAULT_TEST_RE
@@ -48,14 +48,14 @@ _MAX_SYMBOLS = 5
 _MAX_REFS = 20
 
 
-def _is_source(path: str) -> bool:
+def _is_source(path: str, source_globs: List[str]) -> bool:
     """A code file (not markdown/config/test) - the only place symbols make sense."""
     base = os.path.basename(path)
-    return (any(fnmatch.fnmatch(base, g) for g in DEFAULT_SOURCE_GLOBS)
+    return (any(fnmatch.fnmatch(base, g) for g in source_globs)
             and not DEFAULT_TEST_RE.search(path))
 
 
-def _symbols_from_diff(diff: str) -> List[str]:
+def _symbols_from_diff(diff: str, source_globs: List[str]) -> List[str]:
     """Best-effort: the function/symbol names the fix changed, source files only.
 
     Prefers the enclosing-function names from hunk headings (so "other call sites"
@@ -69,7 +69,7 @@ def _symbols_from_diff(diff: str) -> List[str]:
     for line in (diff or "").splitlines():
         dm = _DIFF_FILE.match(line)
         if dm:
-            cur_source = _is_source(dm.group(1))
+            cur_source = _is_source(dm.group(1), source_globs)
             continue
         if not cur_source:
             continue
@@ -95,7 +95,7 @@ def _symbols_from_diff(diff: str) -> List[str]:
     return out[:_MAX_SYMBOLS]
 
 
-def _refs(repo: str, token: str) -> List[str]:
+def _refs(repo: str, token: str, source_globs: List[str]) -> List[str]:
     """Files referencing ``token`` as a whole word (any usage, not just imports).
 
     Same POSIX-safe ``git grep -E`` style as ``blast_radius._importers`` (git grep
@@ -106,7 +106,7 @@ def _refs(repo: str, token: str) -> List[str]:
         return []
     tok = re.escape(token)
     pat = r"(^|[^A-Za-z0-9_]){}([^A-Za-z0-9_]|$)".format(tok)
-    args = ["grep", "-l", "-I", "-E", "-e", pat, "--"] + DEFAULT_SOURCE_GLOBS
+    args = ["grep", "-l", "-I", "-E", "-e", pat, "--"] + source_globs
     out = _proc.git(args, repo, check=False)
     return [f for f in out.splitlines() if f.strip()]
 
@@ -122,18 +122,20 @@ def _diff_lines(diff: str, sign: str) -> set:
     return out
 
 
-def assess(ctx: Dict[str, Any], repo: str, suspects: List[Dict[str, Any]]) -> Dict[str, Any]:
+def assess(ctx: Dict[str, Any], repo: str, suspects: List[Dict[str, Any]],
+           source_globs: Optional[List[str]] = None) -> Dict[str, Any]:
     """Return ``{symbols, other_call_sites, untouched_count, adds_test, is_revert, notes}``."""
+    globs = source_globs or DEFAULT_SOURCE_GLOBS
     diff = ctx.get("diff") or ""
     changed = set(ctx.get("changed_files") or [])
     notes: List[str] = []
 
     # Other references to the changed symbols that the fix did not touch.
-    symbols = _symbols_from_diff(diff)
+    symbols = _symbols_from_diff(diff, globs)
     other_call_sites: Dict[str, List[str]] = {}
     untouched = set()
     for sym in symbols:
-        refs = _refs(repo, sym)
+        refs = _refs(repo, sym, globs)
         outside = [f for f in refs if f not in changed and not DEFAULT_TEST_RE.search(f)][:_MAX_REFS]
         if outside:
             other_call_sites[sym] = outside

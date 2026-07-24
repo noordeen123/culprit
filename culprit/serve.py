@@ -44,8 +44,6 @@ def _creds_view():
     return status, gh_ph, ak_ph
 
 
-# -- base-branch discovery ----------------------------------------------------
-
 def candidate_bases(repo: str) -> List[str]:
     """Ordered, de-duplicated candidate base refs for a repo.
 
@@ -79,8 +77,6 @@ def candidate_bases(repo: str) -> List[str]:
             add(r)
     return out[:60]
 
-
-# -- HTML (form + small error page) -------------------------------------------
 
 _STYLE = """
   body{margin:0;background:#0f1115;color:#e6e9ef;
@@ -212,8 +208,6 @@ def _back_bar() -> str:
             '<a href="/" style="color:#6ea8fe;text-decoration:none"><- New analysis</a></div>')
 
 
-# -- analysis for the report route --------------------------------------------
-
 def run_report(params: Dict[str, List[str]]) -> str:
     def g(k, default=None):
         v = params.get(k, [default])
@@ -241,8 +235,6 @@ def run_report(params: Dict[str, List[str]]) -> str:
     doc = htmlreport.render(result, narrative)
     return doc.replace('<div class="wrap" id="app">', _back_bar() + '<div class="wrap" id="app">', 1)
 
-
-# -- server -------------------------------------------------------------------
 
 def make_handler(default_repo: str):
     class Handler(BaseHTTPRequestHandler):

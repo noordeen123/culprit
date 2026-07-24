@@ -63,8 +63,6 @@ def _commit_date(repo: str, rev: Optional[str]) -> Optional[str]:
     return out.splitlines()[0] if out else None
 
 
-# -- host detection + deep-link templates (multi-forge) -----------------------
-
 def _remote_parts(repo: str):
     """(host, 'owner/repo', web_url) from origin, or None."""
     url = _remote_web_url(repo)

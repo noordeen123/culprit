@@ -1,9 +1,9 @@
 """culprit MCP server: expose the RCA engine as native tool calls.
 
 Install:  pip install culprit[mcp]
-Run:      culprit-mcp          (stdio transport — works with any MCP-compatible client)
+Run:      culprit-mcp          (stdio transport, works with any MCP-compatible client)
 
-Add to your client's MCP config (Claude Code, Cursor, Windsurf, VS Code, Codex CLI, …):
+Add to your client's MCP config (Claude Code, Cursor, Windsurf, VS Code, Codex CLI, etc.):
     {
       "mcpServers": {
         "culprit": { "command": "culprit-mcp" }
@@ -11,9 +11,9 @@ Add to your client's MCP config (Claude Code, Cursor, Windsurf, VS Code, Codex C
     }
 
 Tools are in two tiers:
-  Coarse  — analyze, classify_change, find_suspects, get_blast_radius, get_risk_score
-  Fine    — get_evolution, get_intent, check_completeness, get_test_impact, from_trace
-  Verify  — verify_fix  (check completeness of a proposed diff pre-commit)
+  Coarse: analyze, classify_change, find_suspects, get_blast_radius, get_risk_score
+  Fine:   get_evolution, get_intent, check_completeness, get_test_impact, from_trace
+  Verify: verify_fix  (check completeness of a proposed diff pre-commit)
 """
 from __future__ import annotations
 
@@ -35,6 +35,7 @@ from . import (
     config,
     evolution,
     pr_context,
+    profile,
     suspect,
     testimpact,
 )
@@ -56,15 +57,15 @@ mcp = FastMCP(
     instructions=(
         "RCA (root-cause analysis) engine for git repos. "
         "Recommended agent workflow:\n"
-        "  1. analyze()           — full overview in one call (classify + suspects/blast-radius + risk + test impact)\n"
-        "  2. find_suspects()     — drill into which commits introduced the bug\n"
-        "  3. get_evolution()     — line-by-line history of the exact buggy lines\n"
-        "  4. get_intent()        — what the author was trying to do in the suspect commit\n"
-        "  5. check_completeness()— are there other call sites the fix missed?\n"
-        "  6. verify_fix()        — check proposed diff pre-commit; iterate until verdict='complete'\n"
-        "  7. get_risk_score()    — QA gate score (use with --fail-on in CI)\n\n"
+        "  1. analyze()           - full overview in one call (classify + suspects/blast-radius + risk + test impact)\n"
+        "  2. find_suspects()     - drill into which commits introduced the bug\n"
+        "  3. get_evolution()     - line-by-line history of the exact buggy lines\n"
+        "  4. get_intent()        - what the author was trying to do in the suspect commit\n"
+        "  5. check_completeness()- are there other call sites the fix missed?\n"
+        "  6. verify_fix()        - check proposed diff pre-commit; iterate until verdict='complete'\n"
+        "  7. get_risk_score()    - QA gate score (use with --fail-on in CI)\n\n"
         "For a stack trace with no fix in hand, start with from_trace() instead of analyze(). "
-        "All tools are read-only — they never modify the repo or create commits."
+        "All tools are read-only; they never modify the repo or create commits."
     ),
 )
 
@@ -75,13 +76,9 @@ def _resolve(repo: str, base: Optional[str] = None, head: Optional[str] = None,
     return pr_context.resolve(repo, pr=pr, base=base or config.repo_base(repo), head=head)
 
 
-# ---------------------------------------------------------------------------
-# Coarse tools
-# ---------------------------------------------------------------------------
-
 @mcp.tool()
 def analyze(repo: str, base: str = None, head: str = None, pr: int = None) -> dict:
-    """Full RCA in one call: classify → suspects (bugfix) or blast-radius (feature) → risk score → test impact.
+    """Full RCA in one call: classify -> suspects (bugfix) or blast-radius (feature) -> risk score -> test impact.
 
     Returns the complete structured result. Use the individual tools to drill into specific signals.
     """
@@ -128,7 +125,7 @@ def get_blast_radius(repo: str, base: str = None, head: str = None) -> dict:
     Returns: {dependents: {...}, covering_tests: [...], high_risk: [...], notes: [...]}
     """
     ctx = _resolve(repo, base, head)
-    return blast_radius.analyze(ctx, repo)
+    return blast_radius.analyze(ctx, repo, source_globs=profile.source_globs(repo))
 
 
 @mcp.tool()
@@ -144,9 +141,6 @@ def get_risk_score(repo: str, base: str = None, head: str = None, pr: int = None
     return risk_mod.score(result)
 
 
-# ---------------------------------------------------------------------------
-# Fine-grained tools
-# ---------------------------------------------------------------------------
 
 @mcp.tool()
 def get_evolution(repo: str, file: str, start_line: int, end_line: int,
@@ -184,7 +178,7 @@ def check_completeness(repo: str, base: str = None, head: str = None) -> dict:
               adds_test: bool, is_revert: bool, notes: [...]}
     """
     ctx = _resolve(repo, base, head)
-    return completeness.assess(ctx, repo, [])
+    return completeness.assess(ctx, repo, [], source_globs=profile.source_globs(repo))
 
 
 @mcp.tool()
@@ -197,12 +191,12 @@ def get_test_impact(repo: str, base: str = None, head: str = None) -> dict:
     Returns: {tests: [...], by_test: {test: [reasons]}, notes: [...]}
     """
     ctx = _resolve(repo, base, head)
-    return testimpact.select(ctx, repo)
+    return testimpact.select(ctx, repo, source_globs=profile.source_globs(repo))
 
 
 @mcp.tool()
 def from_trace(repo: str, trace_text: str, head: str = None) -> dict:
-    """RCA from a stack trace or crash log — no diff or PR needed.
+    """RCA from a stack trace or crash log; no diff or PR needed.
 
     Parses the stack trace, blames the crashing lines in git history, and returns
     the suspect set. Works for Python, JavaScript, Java, and Go stack traces.
@@ -219,9 +213,6 @@ def from_trace(repo: str, trace_text: str, head: str = None) -> dict:
     }
 
 
-# ---------------------------------------------------------------------------
-# Fix verification
-# ---------------------------------------------------------------------------
 
 @mcp.tool()
 def verify_fix(repo: str, proposed_diff: str, base: str = None) -> dict:

@@ -100,3 +100,33 @@ def test_symbol_from_enclosing_def_on_a_context_line(multi_call_repo):
     assert "scale" in res["symbols"]
     sites = sum(res["other_call_sites"].values(), [])
     assert "a.py" in sites and "b.py" in sites
+
+
+def test_assess_respects_source_globs(tmp_path):
+    # A symbol referenced from a .py file and a vendored .js file. Narrowing
+    # source_globs to python must drop the .js reference from other-call-sites.
+    git_repo = str(tmp_path)
+    _git(git_repo, "init", "-b", "main")
+    _git(git_repo, "config", "user.email", "t@t.test")
+    _git(git_repo, "config", "user.name", "Tester")
+    with open(os.path.join(git_repo, "core.py"), "w") as fh:
+        fh.write("def helper():\n    return 1\n")
+    with open(os.path.join(git_repo, "user.py"), "w") as fh:
+        fh.write("from core import helper\nhelper()\n")
+    with open(os.path.join(git_repo, "vendor.js"), "w") as fh:
+        fh.write("helper();\n")
+    _git(git_repo, "add", "-A")
+    _git(git_repo, "commit", "-m", "seed")
+
+    diff = ("diff --git a/core.py b/core.py\n"
+            "--- a/core.py\n+++ b/core.py\n"
+            "@@ -1,2 +1,2 @@ def helper():\n"
+            "-    return 1\n+    return 2\n")
+    ctx = {"diff": diff, "changed_files": ["core.py"]}
+
+    wide = completeness.assess(ctx, git_repo, [])
+    narrow = completeness.assess(ctx, git_repo, [], source_globs=["*.py"])
+    js_wide = any("vendor.js" in f for fs in wide["other_call_sites"].values() for f in fs)
+    js_narrow = any("vendor.js" in f for fs in narrow["other_call_sites"].values() for f in fs)
+    assert js_wide is True     # default globs include *.js
+    assert js_narrow is False  # narrowed to *.py -> js reference excluded

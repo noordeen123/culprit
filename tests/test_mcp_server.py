@@ -1,4 +1,4 @@
-"""Tests for culprit.mcp_server — tool registration and basic invocation."""
+"""Tests for culprit.mcp_server: tool registration and basic invocation."""
 import os
 import tempfile
 

@@ -9,7 +9,11 @@ Root-cause analysis for a pull request or branch. Read-only — never modifies y
 
 Given a PR or branch, culprit classifies it as a bugfix or feature:
 
-- **Bugfix** — blames the lines the fix removed at base revision to rank introducing commits (the suspect set), surfaces the author's original intent (introducing PR + linked issue), determines which releases shipped the bug, flags hotspot files, and checks fix completeness (untouched call sites, missing test, revert).
+- **Bugfix** — blames the lines the fix removed (at base revision) to rank the commits that introduced it, then adds context:
+  - **Suspect set** — the ranked introducing commits
+  - **Intent** — the author's original goal (introducing PR + linked issue)
+  - **Lifecycle** — which releases shipped the bug, plus hotspot files
+  - **Completeness** — untouched call sites, a missing test, or a revert
 - **Feature** — maps the blast radius: reverse-import dependents, covering tests, high-risk shared modules.
 
 ## Example
@@ -31,26 +35,14 @@ reverse-import map) emits structured JSON. The LLM narrative is isolated behind 
 for standalone use (`claude-opus-4-8` default, `--fast` for `claude-sonnet-4-6`).
 
 ```text
-  PR / branch ---.
-  stack trace ---+--> pr_context --> ctx  (diff, changed files, commits, host links)
-                          |
-                          v
-                    classify   (bugfix vs feature, with evidence)
-                   /                                  \
-          bugfix  v                                    v  feature
-   suspect   (blame the lines the fix removed)     blast_radius
-     -> evolution  (how the line evolved)           (importers, covering tests,
-     -> intent / lifecycle / completeness            high-risk modules)
-     -> test_gap
-                   \                                  /
-                    v                                v
-                  report.build --> QA risk score
-                          |
-            + test_impact . coupling . owners . coverage
-                          |
-                          v
-   reasoning (optional LLM "why") --> output:
-      JSON | HTML report | markdown | --select-tests | --fail-on (CI exit code)
+  PR / branch / stack trace
+    -> pr_context (diff, changed files, commits, host links)
+    -> classify (bugfix vs feature, with evidence)
+         bugfix  -> suspect -> evolution -> intent / lifecycle / completeness / test_gap
+         feature -> blast_radius (importers, covering tests, high-risk modules)
+    -> report.build -> QA risk score   (+ test_impact, coupling, owners, coverage)
+    -> optional LLM "why" narrative
+    -> output: JSON | HTML | markdown | --select-tests | --fail-on (CI exit code)
 ```
 
 Full module map and data shapes: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
@@ -180,13 +172,15 @@ the blamed suspect, the HTML report stamps it **confirmed by git bisect**. `--go
 
 ## HTML report
 
-`--html PATH` produces a single self-contained file (no CDN, opens offline). For a
-bugfix it renders a line-evolution timeline: for each line the fix touched, every commit
-that ever changed those lines from creation through the breaking commit (red) to the fix
-(green), each node expandable to its diff. Also includes: TL;DR banner, lifecycle strip
-(releases that shipped the bug), introducing PR intent card, fix-completeness callout,
-deep links on every commit/PR/file, weight bars on suspects, per-file filter, and a
-copy-as-markdown button.
+`--html PATH` produces a single self-contained file (no CDN, opens offline). For a bugfix
+it renders a **line-evolution timeline**: for each line the fix touched, every commit that
+ever changed it from creation through the breaking commit (red) to the fix (green), each
+node expandable to its diff. Also includes:
+
+- TL;DR banner and lifecycle strip (releases that shipped the bug)
+- Introducing-PR intent card and fix-completeness callout
+- Deep links on every commit / PR / file, plus weight bars on suspects
+- Per-file filter and a copy-as-markdown button
 
 ```bash
 rca --pr 16889 --html rca.html --open

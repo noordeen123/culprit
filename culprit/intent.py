@@ -3,7 +3,7 @@
 The suspect set tells us which commit last touched the buggy lines. This module
 adds the missing half - the *intent* behind that commit: its full message body,
 the pull request that introduced it (title + description), and any issue it was
-meant to close — so the report can contrast what the change was supposed to do
+meant to close, so the report can contrast what the change was supposed to do
 against what it actually did.
 
 Read-only and offline-safe: the PR lookup is best-effort and returns None when

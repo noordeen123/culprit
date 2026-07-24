@@ -44,7 +44,6 @@ def score(result: Dict[str, Any]) -> Dict[str, Any]:
     feature = result.get("feature") or {}
     changed = target.get("changed_files") or []
 
-    # --- coverage / test gap ----------------------------------------------
     # Real coverage (when supplied via --coverage) is ground truth and supersedes
     # the import heuristic, so we don't double-count the two.
     cov = result.get("coverage") or {}
@@ -76,7 +75,6 @@ def score(result: Dict[str, Any]) -> Dict[str, Any]:
         add("hotspot", 25, "touches a fragile hotspot ({} prior fixes to this file)".format(
             rec.get("fix_count")))
 
-    # --- feature signals --------------------------------------------------
     deps = feature.get("total_dependents") or 0
     if deps:
         add("blast radius", min(25, deps),
@@ -86,7 +84,6 @@ def score(result: Dict[str, Any]) -> Dict[str, Any]:
         add("high-risk modules", min(20, 7 * len(high_risk)),
             "{} touched file(s) live in shared/core areas".format(len(high_risk)))
 
-    # --- churn (both paths) ----------------------------------------------
     n_files = len(changed)
     if n_files >= 10:
         add("large changeset", min(15, n_files // 5),

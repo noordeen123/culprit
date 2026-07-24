@@ -24,7 +24,7 @@ MAX_FILES = 150  # safety cap on how many changed files to blame in one run
 # (b) detect blame-absorbing commits worth chaining through.
 #
 # Deliberately excludes "move": commits that move code frequently ARE the
-# bug's origin (the -M -C lesson) — benchmarking showed matching "move"
+# bug's origin (the -M -C lesson); benchmarking showed matching "move"
 # demotes true root-cause commits.
 _MECHANICAL_RE = re.compile(
     r"(?i)\b(refactor|reformat|restyle|style|indent|whitespace|typo|"
@@ -154,7 +154,7 @@ def _detect_multi_cluster(parsed: List[Dict[str, Any]]) -> Optional[str]:
     )
     return (
         "the diff spans {} distinct subsystem(s) ({}); the branch may contain multiple "
-        "unrelated changes — the prime suspect may belong to the wrong cluster. "
+        "unrelated changes. The prime suspect may belong to the wrong cluster. "
         "Consider running `--last` on individual commits for a focused analysis.".format(
             len(groups), cluster_desc
         )
@@ -233,7 +233,7 @@ def _blame_lines(repo: str, rev: str, path: str, start: int, end: int) -> List[D
     """Return per-line blame info for path@rev over [start, end].
 
     Deliberately no -M/-C: they blame whoever wrote moved content, but when a
-    bug is introduced by a move/refactor the introducing commit is the mover —
+    bug is introduced by a move/refactor the introducing commit is the mover;
     benchmarking against Fixes:-trailer ground truth showed -M -C reduces
     top-1 accuracy. A repo's ``.git-blame-ignore-revs`` (mass-reformat commits)
     is honored when present; if git rejects the file (bad content, git < 2.23)

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from . import completeness, testimpact
+from . import completeness, profile, testimpact
 from .suspect import _DIFF_GIT
 
 
@@ -46,8 +46,9 @@ def assess(repo: str, proposed_diff: str, base: Optional[str] = None) -> Dict[st
         "commits": [],
     }
 
-    comp = completeness.assess(ctx, repo, [])
-    impact = testimpact.select(ctx, repo)
+    globs = profile.source_globs(repo)
+    comp = completeness.assess(ctx, repo, [], source_globs=globs)
+    impact = testimpact.select(ctx, repo, source_globs=globs)
 
     symbols: List[str] = comp.get("symbols", [])
     other_call_sites: Dict[str, List[str]] = comp.get("other_call_sites", {})

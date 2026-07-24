@@ -1,11 +1,11 @@
-"""Tests for culprit.verify_fix — fix verification before committing."""
+"""Tests for culprit.verify_fix: fix verification before committing."""
 import os
 import tempfile
 
 import pytest
 from githelper import git as _git
 
-from culprit import verify_fix
+from culprit import profile, verify_fix
 
 
 @pytest.fixture()
@@ -89,7 +89,7 @@ def test_partial_verdict_when_call_site_missed(multi_call_repo):
 
 def test_complete_verdict_with_test(multi_call_repo):
     res = verify_fix.assess(multi_call_repo, _COMPLETE_WITH_TEST_DIFF)
-    # Both call sites patched and a test added — complete or partial (util.py defines scale too)
+    # Both call sites patched and a test added; complete or partial (util.py defines scale too)
     assert res["verdict"] in ("complete", "partial")
     assert res["adds_test"] is True
     # Adding a test keeps risk low or medium at worst
@@ -120,3 +120,27 @@ def test_risk_level_high_when_many_untouched(multi_call_repo):
     # Only fixing a.py when b.py also has a call site, no test coverage -> medium/high
     res = verify_fix.assess(multi_call_repo, _PARTIAL_DIFF)
     assert res["risk_level"] in ("medium", "high")
+
+
+def test_verify_fix_honors_profile_source_globs(tmp_path):
+    d = str(tmp_path)
+    _git(d, "init", "-b", "main")
+    _git(d, "config", "user.email", "t@t.test")
+    _git(d, "config", "user.name", "Tester")
+    with open(os.path.join(d, "app.py"), "w") as fh:
+        fh.write("def helper():\n    return 1\n")
+    with open(os.path.join(d, "user.py"), "w") as fh:
+        fh.write("from app import helper\nhelper()\n")
+    with open(os.path.join(d, "vendor.js"), "w") as fh:
+        fh.write("helper();\n")
+    _git(d, "add", "-A")
+    _git(d, "commit", "-m", "seed")
+    diff = ("diff --git a/app.py b/app.py\n"
+            "--- a/app.py\n+++ b/app.py\n"
+            "@@ -1,2 +1,2 @@ def helper():\n"
+            "-    return 1\n+    return 2\n")
+    r_default = verify_fix.assess(d, diff, "main")
+    profile.write(d, {"generated_head": "", "source_globs": ["*.py"], "test_globs": []})
+    r_narrow = verify_fix.assess(d, diff, "main")
+    assert any("vendor.js" in ref for ref in r_default["untouched_references"])
+    assert not any("vendor.js" in ref for ref in r_narrow["untouched_references"])
