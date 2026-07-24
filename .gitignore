@@ -21,3 +21,9 @@ output/
 venv/
 superpowers
 benchmarks
+.superpowers
+.ruff_cache
+
+# benchmarks (dev tool): clone cache and run results stay local
+benchmarks/.cache/
+benchmarks/results*.json

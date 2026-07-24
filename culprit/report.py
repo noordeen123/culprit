@@ -125,10 +125,17 @@ def markdown_skeleton(result: Dict[str, Any]) -> str:
         lines.append("## Suspect set")
         for i, s in enumerate(suspects, 1):
             pr = " (PR #{})".format(s["pr_number"]) if s.get("pr_number") else ""
-            lines.append("{}. `{}` - {} - {}{}".format(
-                i, s["short"], s.get("author"), s.get("subject"), pr))
-            lines.append("   - {} buggy line(s), weight {}, files: {}".format(
-                s["lines"], s.get("weight"), ", ".join(s.get("files", []))))
+            chained = s.get("chained_from")
+            tag = " _(chained: {} hop(s) back via `{}`)_".format(
+                s["hop"], chained[:10]) if chained else ""
+            lines.append("{}. `{}` - {} - {}{}{}".format(
+                i, s["short"], s.get("author"), s.get("subject"), pr, tag))
+            if chained:
+                lines.append("   - reached by blaming what `{}` edited; "
+                             "a candidate origin, not a direct blame hit".format(chained[:10]))
+            else:
+                lines.append("   - {} buggy line(s), weight {}, files: {}".format(
+                    s["lines"], s.get("weight"), ", ".join(s.get("files", []))))
         bz = b.get("bisect")
         if bz and not bz.get("error") and bz.get("first_bad"):
             agree = bz.get("agrees_with_suspect")
