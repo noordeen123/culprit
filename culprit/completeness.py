@@ -63,6 +63,10 @@ _NON_SYMBOLS = frozenset({
 
 _MAX_SYMBOLS = 5
 _MAX_REFS = 20
+# A symbol referenced across more than this many files is core infrastructure,
+# not a helper the fix might have half-updated - flagging dozens of call sites is
+# noise, so we skip it (and note it) rather than cry wolf.
+_COMMON_REFS = 20
 
 
 def _is_source(path: str, source_globs: List[str]) -> bool:
@@ -171,12 +175,20 @@ def assess(ctx: Dict[str, Any], repo: str, suspects: List[Dict[str, Any]],
                if s.lower() not in _NON_SYMBOLS and _is_defined(repo, s, globs)][:_MAX_SYMBOLS]
     other_call_sites: Dict[str, List[str]] = {}
     untouched = set()
+    common_symbols: List[str] = []
     for sym in symbols:
         refs = _refs(repo, sym, globs)
-        outside = [f for f in refs if f not in changed and not DEFAULT_TEST_RE.search(f)][:_MAX_REFS]
+        outside = [f for f in refs if f not in changed and not DEFAULT_TEST_RE.search(f)]
+        if len(outside) > _COMMON_REFS:
+            common_symbols.append(sym)   # ubiquitous: not a fix-completeness signal
+            continue
         if outside:
-            other_call_sites[sym] = outside
-            untouched.update(outside)
+            other_call_sites[sym] = outside[:_MAX_REFS]
+            untouched.update(outside[:_MAX_REFS])
+    if common_symbols:
+        notes.append("skipped {} widely-referenced symbol(s) ({}); used across the "
+                     "codebase, not a fix-completeness signal".format(
+                         len(common_symbols), ", ".join(common_symbols)))
 
     # Did the fix ship a test?
     adds_test = any(DEFAULT_TEST_RE.search(f) for f in changed)

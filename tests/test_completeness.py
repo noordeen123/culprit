@@ -187,3 +187,22 @@ def test_assess_drops_builtin_named_project_method(git_repo):
     ctx = {"diff": diff, "changed_files": ["store.py"]}
     res = completeness.assess(ctx, git_repo, [], source_globs=["*.py"])
     assert "get" not in res["symbols"]                  # denylist wins over repo-defined
+
+
+def test_assess_skips_ubiquitous_symbol(git_repo, monkeypatch):
+    monkeypatch.setattr(completeness, "_COMMON_REFS", 2)  # keep the fixture small
+    with open(os.path.join(git_repo, "lib.py"), "w") as fh:
+        fh.write("def widely_used():\n    return 1\n")
+    for i in range(4):  # 4 referencing files > threshold of 2
+        with open(os.path.join(git_repo, "u{}.py".format(i)), "w") as fh:
+            fh.write("from lib import widely_used\nwidely_used()\n")
+    _git(git_repo, "add", "-A")
+    _git(git_repo, "commit", "-m", "seed")
+    diff = ("diff --git a/lib.py b/lib.py\n"
+            "--- a/lib.py\n+++ b/lib.py\n"
+            "@@ -1,2 +1,2 @@ def widely_used():\n"
+            "-    return 1\n+    return 2\n")
+    ctx = {"diff": diff, "changed_files": ["lib.py"]}
+    res = completeness.assess(ctx, git_repo, [], source_globs=["*.py"])
+    assert "widely_used" not in res["other_call_sites"]        # too common -> skipped
+    assert any("widely_used" in n for n in res["notes"])       # skip is noted
