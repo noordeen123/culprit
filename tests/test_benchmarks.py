@@ -100,3 +100,10 @@ def test_run_cli_help_exits_zero():
         [sys.executable, os.path.join(root, "benchmarks", "run.py"), "--help"],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     assert r.returncode == 0
+
+
+def test_run_case_passes_chain_mode(trailer_repo):
+    repo, intro = trailer_repo
+    fix = _cgit(repo, "rev-parse", "HEAD").strip()
+    # the engine default is chain="additive"; an explicit "additive" must match it
+    assert bench_run.run_case(repo, fix, chain="additive") == bench_run.run_case(repo, fix)
