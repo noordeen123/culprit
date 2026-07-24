@@ -132,19 +132,30 @@ def _refs(repo: str, token: str, source_globs: List[str]) -> List[str]:
 
 
 def _is_defined(repo: str, token: str, source_globs: List[str]) -> bool:
-    """True if the repo defines ``token`` (def/class/func/... form) in a source file.
+    """True if the repo defines ``token`` in a source file.
 
-    POSIX-safe ``git grep -E`` (git grep has no \\b, so boundaries are
-    ``[^A-Za-z0-9_]``), same style as ``_refs``. Restricting symbols to names the
-    repo actually defines drops builtins and library calls the fix merely *uses*
-    (``isinstance``, ``ArgumentParser``, ...).
+    Two definition shapes, both POSIX-safe ``git grep -E`` (git grep has no \\b,
+    so boundaries are spelled out), same style as ``_refs``:
+
+    1. Keyword-led: ``def``/``class``/``func``/``struct``/... ``token`` - Python,
+       JS, Go, Rust, Ruby, TypeScript.
+    2. Brace-language signature whose body opens on the same line:
+       ``int token(args) {``, ``public void token() {``, ``bool token() const {``
+       - Java, C#, C/C++, and object-method shorthand, none of which carry a
+       leading def keyword. The arg list and the run up to ``{`` both exclude
+       ``)`` and ``{``, so an ordinary call like ``if (token()) {`` cannot pass
+       for a definition (its inner ``)`` stops the match short of the brace).
+
+    Restricting symbols to names the repo actually defines drops builtins and
+    library calls the fix merely *uses* (``isinstance``, ``ArgumentParser``, ...).
     """
     if not token:
         return False
     tok = re.escape(token)
-    pat = (r"(def|class|function|func|fn|interface|struct|type|sub)"
-           r"[[:space:]]+{}([^A-Za-z0-9_]|$)".format(tok))
-    args = ["grep", "-l", "-I", "-E", "-e", pat, "--"] + source_globs
+    keyword = (r"(def|class|function|func|fn|interface|struct|type|sub)"
+               r"[[:space:]]+{}([^A-Za-z0-9_]|$)".format(tok))
+    signature = tok + r"[[:space:]]*\([^{}();]*\)[A-Za-z_[:space:]]*\{"
+    args = ["grep", "-l", "-I", "-E", "-e", keyword, "-e", signature, "--"] + source_globs
     out = _proc.git(args, repo, check=False)
     return bool(out.strip())
 
@@ -171,8 +182,13 @@ def assess(ctx: Dict[str, Any], repo: str, suspects: List[Dict[str, Any]],
     # Other references to the changed symbols that the fix did not touch.
     # Keep only names the repo actually defines and that aren't builtins/methods,
     # so "other call sites" reflects real project symbols, not `get`/`isinstance`.
-    symbols = [s for s in _symbols_from_diff(diff, globs)
-               if s.lower() not in _NON_SYMBOLS and _is_defined(repo, s, globs)][:_MAX_SYMBOLS]
+    symbols: List[str] = []
+    for cand in _symbols_from_diff(diff, globs):
+        if cand.lower() in _NON_SYMBOLS or not _is_defined(repo, cand, globs):
+            continue
+        symbols.append(cand)
+        if len(symbols) >= _MAX_SYMBOLS:  # stop grepping once the budget is full
+            break
     other_call_sites: Dict[str, List[str]] = {}
     untouched = set()
     common_symbols: List[str] = []

@@ -189,6 +189,36 @@ def test_assess_drops_builtin_named_project_method(git_repo):
     assert "get" not in res["symbols"]                  # denylist wins over repo-defined
 
 
+def test_assess_recognizes_brace_language_method_definition(git_repo):
+    # A Java/C-family method definition carries no leading `def`/`func` keyword;
+    # _is_defined must still recognize it (the body opens on the same line) so the
+    # symbol survives and its other call sites are reported. Without this, the
+    # precision filter silences completeness for every C-family method.
+    with open(os.path.join(git_repo, "Calc.java"), "w") as fh:
+        fh.write("class Calc {\n"
+                 "    public int computeTotal(int x) {\n"
+                 "        return x + 1;\n"
+                 "    }\n"
+                 "}\n")
+    with open(os.path.join(git_repo, "Caller.java"), "w") as fh:
+        fh.write("class Caller {\n"
+                 "    void run(Calc c) {\n"
+                 "        c.computeTotal(5);\n"
+                 "    }\n"
+                 "}\n")
+    _seed(git_repo)
+    diff = ("diff --git a/Calc.java b/Calc.java\n"
+            "--- a/Calc.java\n+++ b/Calc.java\n"
+            "@@ -2,3 +2,3 @@ public int computeTotal(int x) {\n"
+            "-        return x + 1;\n"
+            "+        return x + 2;\n")
+    ctx = {"diff": diff, "changed_files": ["Calc.java"]}
+    res = completeness.assess(ctx, git_repo, [], source_globs=["*.java"])
+    assert "computeTotal" in res["symbols"]
+    sites = res["other_call_sites"].get("computeTotal", [])
+    assert any("Caller.java" in f for f in sites)
+
+
 def test_assess_skips_ubiquitous_symbol(git_repo, monkeypatch):
     monkeypatch.setattr(completeness, "_COMMON_REFS", 2)  # keep the fixture small
     with open(os.path.join(git_repo, "lib.py"), "w") as fh:
