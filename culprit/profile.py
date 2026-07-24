@@ -81,6 +81,28 @@ def detect(repo: str) -> Dict[str, Any]:
             "test_globs": _detect_test_globs(files)}
 
 
+def _is_str_list(v: Any) -> bool:
+    return isinstance(v, list) and all(isinstance(x, str) for x in v)
+
+
+def _valid_block(block: Any) -> bool:
+    """A profile block (detected/overrides) must be an object with well-typed fields.
+
+    The profile is hand-editable, so a wrong-shaped block (e.g. a string where an
+    object is expected, or a bare string instead of a glob list) must fail the
+    whole load rather than crash an accessor or feed garbage globs downstream.
+    """
+    if not isinstance(block, dict):
+        return False
+    if "source_globs" in block and not _is_str_list(block["source_globs"]):
+        return False
+    if "test_globs" in block and not _is_str_list(block["test_globs"]):
+        return False
+    if "generated_head" in block and not isinstance(block["generated_head"], str):
+        return False
+    return True
+
+
 def load(repo: str) -> Optional[Dict[str, Any]]:
     """Parse the profile; None if absent / unreadable / malformed / too-new."""
     try:
@@ -93,6 +115,9 @@ def load(repo: str) -> Optional[Dict[str, Any]]:
     ver = data.get("version", VERSION)
     if not isinstance(ver, (int, float)) or isinstance(ver, bool) or ver > VERSION:
         return None
+    for key in ("detected", "overrides"):
+        if key in data and not _valid_block(data[key]):
+            return None
     return data
 
 

@@ -161,3 +161,21 @@ def test_staleness_note_none_when_head_not_resolvable(git_repo):
                    "overrides": {}}, fh)
     # a nonexistent generated_head -> merge-base --is-ancestor errors -> None
     assert profile.staleness_note(git_repo) is None
+
+
+@pytest.mark.parametrize("bad", [
+    {"version": 1, "detected": {}, "overrides": "not-an-object"},
+    {"version": 1, "detected": ["not", "an", "object"], "overrides": {}},
+    {"version": 1, "detected": {"source_globs": "*.py"}, "overrides": {}},  # str, not list
+    {"version": 1, "detected": {"source_globs": [1, 2]}, "overrides": {}},  # non-str entries
+    {"version": 1, "detected": {"generated_head": 123}, "overrides": {}},   # non-str head
+    {"version": 1, "detected": {}, "overrides": {"test_globs": "tests/"}},  # str, not list
+])
+def test_load_none_on_malformed_block_shape(git_repo, bad):
+    os.makedirs(os.path.join(git_repo, ".culprit"))
+    with open(os.path.join(git_repo, profile.PROFILE_PATH), "w") as fh:
+        json.dump(bad, fh)
+    # A wrong-shaped hand edit degrades to defaults, never crashes an accessor.
+    assert profile.load(git_repo) is None
+    assert profile.source_globs(git_repo) == list(DEFAULT_SOURCE_GLOBS)
+    assert profile.staleness_note(git_repo) is None
