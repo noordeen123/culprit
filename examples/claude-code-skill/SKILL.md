@@ -15,7 +15,12 @@ description: Root-cause analysis and QA review for a PR, branch, or stack trace.
   so you can drop --base entirely. The engine is read-only - it only runs git
   (diff/blame/log) and, when available, gh pr (read-only). It never modifies the repo or PR.
 
-  NOTE: If your agent supports MCP (Claude Code, Cursor, Windsurf, VS Code, Codex CLI,
+  NOTE: On Claude Code, the one-command plugin bundles this skill AND the MCP server:
+      /plugin marketplace add noordeen123/culprit
+      /plugin install culprit@culprit
+  This template is for a non-plugin setup or another agent.
+
+  If your agent supports MCP (Claude Code, Cursor, Windsurf, VS Code, Codex CLI,
   Zed, Continue, Cline, Amazon Q, Goose, or any MCP SDK client), the MCP server
   integration is simpler and more capable than this skill. Install with:
       pip install "culprit[mcp]"
