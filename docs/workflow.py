@@ -50,7 +50,7 @@ def node(x, y, w, title, sub, c, accent, peak):
     """A stage card whose border brightens as the pulse passes (peak = 0..1)."""
     lo, hi = max(0.0, peak - 0.05), min(1.0, peak + 0.09)
     # starts and ends on the base stroke, so the loop is seamless
-    kt = "0;{:.4f};{:.4f};{:.4f};1".format(lo, peak, hi, 1.0)
+    kt = "0;{:.4f};{:.4f};{:.4f};1".format(lo, peak, hi)
     vals = "{s};{s};{a};{s};{s}".format(s=c["stroke"], a=accent)
     return (
         '<g>'
@@ -90,7 +90,6 @@ def connector(x1, x2, y, c, color, delay):
     # The pulse: fades in and out at the ends so the wrap is invisible. Base cx/cy
     # and opacity="0" matter - before `begin` elapses an SVG element paints its base
     # attributes, and a circle with no cx/cy would flash at the origin.
-    span = (x2 - x1)
     out.append(
         '<circle cx="{x1}" cy="{y}" r="4.5" fill="{col}" opacity="0">'
         '<animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.85;1" '
@@ -99,7 +98,7 @@ def connector(x1, x2, y, c, color, delay):
         'repeatCount="indefinite"/>'
         '<animate attributeName="cy" values="{y};{y}" dur="{cy}s" begin="{b}s" '
         'repeatCount="indefinite"/>'
-        '</circle>'.format(col=color, cy=CYCLE, b=delay, x1=x1, x2=x2, y=y, span=span))
+        '</circle>'.format(col=color, cy=CYCLE, b=delay, x1=x1, x2=x2, y=y))
     return "".join(out)
 
 
