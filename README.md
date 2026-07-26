@@ -2,154 +2,66 @@
 
 <!-- mcp-name: io.github.noordeen123/culprit -->
 
-[![CI](https://github.com/noordeen123/culprit/actions/workflows/ci.yml/badge.svg)](https://github.com/noordeen123/culprit/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/pypi/v/culprit.svg)](https://pypi.org/project/culprit/)
-[![Python versions](https://img.shields.io/pypi/pyversions/culprit.svg)](https://pypi.org/project/culprit/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+<p align="center">
+  <a href="https://github.com/noordeen123/culprit/actions/workflows/ci.yml"><img src="https://github.com/noordeen123/culprit/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://pypi.org/project/culprit/"><img src="https://img.shields.io/pypi/v/culprit.svg" alt="PyPI"></a>
+  <a href="https://pypi.org/project/culprit/"><img src="https://img.shields.io/pypi/pyversions/culprit.svg" alt="Python versions"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
+</p>
 
-Root-cause analysis for a pull request or branch. Read-only — never modifies your repo or PR.
-Runs as a CLI, a CI gate, or an MCP server your coding agent (or subagent) calls to verify a fix is complete before it commits.
+<p align="center">
+  <b>Root-cause analysis for agent-driven development.</b><br>
+  Your coding agent finds what introduced a bug, and verifies its own fix is complete before it commits.
+</p>
 
-Given a PR or branch, culprit classifies it as a bugfix or feature:
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#the-tools">Tools</a> ·
+  <a href="#accuracy">Accuracy</a> ·
+  <a href="docs/ARCHITECTURE.md">Architecture</a> ·
+  <a href="https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.noordeen123/culprit">MCP registry</a>
+</p>
 
-- **Bugfix** — blames the lines the fix removed (at base revision) to rank the commits that introduced it, then adds context:
-  - **Suspect set** — the ranked introducing commits
-  - **Intent** — the author's original goal (introducing PR + linked issue)
-  - **Lifecycle** — which releases shipped the bug, plus hotspot files
-  - **Completeness** — untouched call sites, a missing test, or a revert
-- **Feature** — maps the blast radius: reverse-import dependents, covering tests, high-risk shared modules.
+<p align="center">
+  <img src="docs/demo.gif" width="900" alt="An agent's fix scores partial with two missed call sites, then complete after patching them">
+  <br>
+  <em>A real run. The fix patched one caller of <code>parse_config</code> and missed two, so it scores <code>partial</code>.</em>
+</p>
 
-## Example
+## Highlights
 
-`rca --html report.html` on a bugfix — a one-line formula silently broken by a `perf`
-commit, shipped across three releases. QA risk score, introducing commit intent,
-line-evolution timeline (created → broke (red) → fix (green)), test impact, co-change
-gaps, reviewer suggestions.
+- ⚡️ **Instant root cause.** No test runs, no bisect. Blames the fix's own lines back through refactors.
+- ✅ **`verify_fix` gate.** Tells an agent if its patch is `complete`, `partial`, or `risky`, before commit.
+- 🔌 **MCP-native.** 11 tools over stdio, on the official MCP registry. One-command Claude Code plugin.
+- 📊 **Benchmarked.** 50 real regressions from git and systemd. Reproducible, not a vibe.
+- 🔒 **Read-only and offline.** Never writes to your repo or PR. No API key, no network.
+- 🧠 **Structured output.** JSON grounded in git, so an agent reasons over facts instead of guessing.
+- 🗣️ **Language-agnostic.** Suspects work anywhere git does. Blast radius reads 12 language families.
 
-![culprit RCA report](docs/report.png)
+## Why an agent needs this
 
-Single self-contained HTML file. No server, no CDN. Opens offline, attaches to CI.
+An agent is good at writing a patch and bad at knowing whether the patch is **done**.
+It cannot see that the helper it just changed has three other callers, or that the bug
+it is fixing was introduced by a refactor two years ago.
 
-## Architecture
+culprit answers both from git history:
 
-The deterministic git work (diff parsing, `git blame`/`git log -L`, suspect set,
-reverse-import map) emits structured JSON. The LLM narrative is isolated behind a
-`ReasoningAdapter` — `HarnessAdapter` for Claude Code (no key needed), `ClaudeAPIAdapter`
-for standalone use (`claude-opus-4-8` default, `--fast` for `claude-sonnet-4-6`).
-
-```text
-  PR / branch / stack trace
-    -> pr_context (diff, changed files, commits, host links)
-    -> classify (bugfix vs feature, with evidence)
-         bugfix  -> suspect -> evolution -> intent / lifecycle / completeness / test_gap
-         feature -> blast_radius (importers, covering tests, high-risk modules)
-    -> report.build -> QA risk score   (+ test_impact, coupling, owners, coverage)
-    -> optional LLM "why" narrative
-    -> output: JSON | HTML | markdown | --select-tests | --fail-on (CI exit code)
-```
-
-Full module map and data shapes: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
-
-## Accuracy
-
-Suspect-finding is benchmarked against 50 real regressions — 25 from
-[git](https://github.com/git/git), 25 from [systemd](https://github.com/systemd/systemd) —
-where the introducing commit is known from each fix's `Fixes:` trailer (author-verified
-ground truth). culprit is run exactly as you would: given only the fix commit, it blames
-the removed lines to rank the commits that introduced the bug.
-
-| Metric | Result |
+| The agent asks | culprit answers |
 |---|---|
-| Introducing commit ranked #1 (top-1) | **50%** (25/50) |
-| Introducing commit in the top-5 suspect set | **66%** (33/50) |
+| "What introduced this bug?" | Ranked suspect commits, the author's intent, the releases it shipped in |
+| "Is my fix complete?" | `verify_fix`: missed call sites, whether a test shipped, a risk level |
+| "What could this change break?" | Reverse-import dependents, covering tests, high-risk shared modules |
 
-Fully deterministic and offline, on large C codebases the engine has never seen.
-Reproduce: `python benchmarks/run.py` (clones the repos, scores every case).
+## Quick start
 
-## Install
-
-```bash
-uvx culprit                          # runs from PyPI on demand, no install step
-uvx --from "culprit[api]" rca        # include the Claude API reasoning layer
-
-pip install culprit                  # permanent install
-pip install "culprit[api]"           # + anthropic SDK
-pipx install culprit                 # isolated CLI
-pip install -e ".[dev]" && pytest    # from source
-```
-
-PR metadata uses the GitHub CLI when available (`brew install gh && gh auth login`).
-For public repos, `rca --pr N` falls back to the unauthenticated REST API (GitHub and
-GitLab) — set `GITHUB_TOKEN` / `GITLAB_TOKEN` to raise rate limits. Without either,
-culprit uses local git only (no PR title/labels).
-
-**Hosts:** deep links work for GitHub, GitLab, Bitbucket, and Gitea. For self-hosted
-forges set `host = "gitlab"` in `.culprit.toml` or `CULPRIT_HOST`.
-
-**Languages:** suspect/timeline are language-agnostic (`git blame`/`log -L`). Blast
-radius detects imports across JS/TS, Python, Go, Java/Kotlin, Ruby, C/C++, C#, PHP,
-Rust, Scala, Swift.
-
-## Usage
-
-```bash
-rca                          # current branch vs configured base (or HEAD~1)
-rca --last                   # latest commit only
-rca --pr 16786               # specific PR (uses the PR's own base)
-rca --repo /path --base main
-rca --mode api --fast        # Claude API reasoning, sonnet model
-rca --json                   # structured JSON output only
-rca --html report.html --open
-rca --trace crash.txt        # RCA from a stack trace, no fix/PR needed
-rca --verify-fix patch.diff  # check a diff for completeness before committing
-rca --select-tests           # print tests to run for this change (CI-pipeable)
-rca --pr 16889 --bisect "pytest tests/test_x.py::test_y"
-rca --pr 16889 --fail-on high   # exit non-zero when QA risk >= high
-rca serve --repo /path          # local web UI with base picker (http://127.0.0.1:8722)
-```
-
-## CI
-
-culprit signals risk via exit code only — no PR comments, no writes. Copy
-[`examples/github-actions/culprit-pr.yml`](examples/github-actions/culprit-pr.yml)
-into `.github/workflows/`:
-
-```yaml
-- uses: actions/checkout@v4
-  with: { fetch-depth: 0 }
-- uses: actions/setup-python@v5
-  with: { python-version: "3.12" }
-- run: pip install "culprit>=0.3.0"
-- env: { GH_TOKEN: "${{ github.token }}" }
-  run: rca --pr ${{ github.event.pull_request.number }} --html culprit-report.html --no-save --fail-on high
-- if: always()
-  uses: actions/upload-artifact@v4
-  with: { name: culprit-report, path: culprit-report.html }
-```
-
-## MCP server
-
-culprit ships an MCP server that works with any MCP-compatible client over stdio:
-Claude Code, Cursor, Windsurf, VS Code, Codex CLI, Zed, Continue.dev, Cline, Amazon Q,
-Goose, or any agent built on the MCP SDK. Requires Python 3.10+ and
-[uv](https://docs.astral.sh/uv/) (`brew install uv`).
-
-**Claude Code (plugin — recommended):** installs the MCP server *and* a skill that
-tells the agent when to reach for it (RCA on a regression, `verify_fix` before a commit):
+**Claude Code plugin** (installs the MCP server plus a skill that tells the agent when to use it):
 
 ```bash
 /plugin marketplace add noordeen123/culprit
 /plugin install culprit@culprit
 ```
 
-**Claude Code (MCP server only):**
-
-```bash
-claude mcp add culprit -- uvx --from "culprit[mcp]" culprit-mcp
-```
-
-**Other clients** — add to your client's MCP config (`mcpServers` key; file location
-varies by client):
+**Any MCP client** (Cursor, Windsurf, VS Code, Codex CLI, Zed, Continue, Cline, Amazon Q, Goose):
 
 ```json
 {
@@ -162,71 +74,153 @@ varies by client):
 }
 ```
 
-**Tools (11):**
+**CLI**, no agent required:
 
-| Tool | Description |
+```bash
+uvx culprit                     # run from PyPI on demand
+rca --verify-fix patch.diff     # exit 0 if complete, 1 otherwise
+```
+
+Needs Python 3.10+ and [uv](https://docs.astral.sh/uv/) for the MCP server. The CLI runs on 3.9+.
+
+## The tools
+
+| Tool | What it answers |
 |---|---|
-| `analyze` | Full RCA in one call — classify + suspects/blast-radius + risk + test impact |
-| `find_suspects` | Rank commits by likelihood of introducing the bug |
-| `get_evolution` | Per-commit line history via `git log -L` for the buggy range |
-| `get_intent` | Introducing commit: message body, linked PR, referenced issues |
-| `check_completeness` | Call sites the fix didn't touch |
-| `verify_fix` | Check a proposed diff before committing — `complete`/`partial`/`risky` |
-| `get_risk_score` | QA gate score (0–100, low/medium/high) with contributing factors |
-| `get_blast_radius` | Feature change impact: dependents, covering tests, high-risk files |
+| `analyze` | Full RCA in one call: classify, suspects or blast radius, risk, test impact |
+| `verify_fix` | Is this diff safe to commit? `complete` / `partial` / `risky`, plus the missed call sites |
+| `find_suspects` | Rank the commits that introduced the bug |
+| `check_completeness` | Call sites of the changed symbol the fix did not touch |
+| `get_intent` | The introducing commit's message, linked PR, referenced issues |
+| `get_evolution` | Per-commit history of the buggy lines via `git log -L` |
+| `get_risk_score` | QA gate score (0 to 100, low/medium/high) with contributing factors |
+| `get_blast_radius` | Feature impact: dependents, covering tests, high-risk files |
 | `get_test_impact` | Minimal test set to run for this change |
-| `classify_change` | Bugfix vs feature with evidence |
-| `from_trace` | RCA from a stack trace — no diff or PR required |
+| `classify_change` | Bugfix vs feature, with evidence |
+| `from_trace` | RCA straight from a stack trace, no diff or PR needed |
 
-The Claude Code plugin above bundles this skill for you. For a non-plugin setup (or
-another agent), copy [`examples/claude-code-skill/SKILL.md`](examples/claude-code-skill/SKILL.md)
-into `.claude/skills/rca/` and fill in `<REPO_PATH>` / `<BASE_BRANCH>`.
+## verify_fix, the pre-commit gate
+
+The agent runs this on its own diff before committing:
+
+- **`verdict`**: `complete` when no untouched call site is left behind, `partial` when one was
+  missed, `risky` when risk is high. The verdict is the completeness axis; test coverage is
+  the separate confidence axis on `risk_level`.
+- **`untouched_references`**: the exact files that still use the changed symbol. This is the
+  list the agent goes and patches.
+- **`skipped_symbols`**, **`adds_test`**, **`notes`**: what was too widely used to check, whether
+  a test shipped, and what to do next.
+
+Loop until `complete`, then commit. That is the whole idea.
+
+## Accuracy
+
+Benchmarked against 50 real regressions, 25 from [git](https://github.com/git/git) and 25 from
+[systemd](https://github.com/systemd/systemd), where the introducing commit is known from each
+fix's `Fixes:` trailer (author-verified ground truth). Given only the fix commit, culprit blames
+the removed lines to rank the commits that introduced the bug.
+
+| Metric | Result |
+|---|---|
+| Introducing commit ranked #1 | **50%** (25/50) |
+| Introducing commit in the top-5 suspect set | **66%** (33/50) |
+
+Deterministic and offline, on large C codebases the engine has never seen. Reproduce with
+`python benchmarks/run.py`, which clones the repos and scores every case.
+
+## CLI and CI
+
+```bash
+rca                            # current branch vs the configured base
+rca --last                     # the latest commit only
+rca --pr 16786                 # a specific PR (uses the PR's own base)
+rca --trace crash.txt          # RCA from a stack trace, no fix or PR needed
+rca --verify-fix patch.diff    # check a diff before committing
+rca --select-tests             # print the tests to run for this change
+rca --html report.html --open  # a single self-contained HTML report
+rca --pr 16889 --fail-on high  # exit non-zero when QA risk is high
+rca serve --repo /path         # local web UI with a base picker
+```
+
+**CI gate**: risk via exit code only, no PR comments, no writes. Copy
+[`examples/github-actions/culprit-pr.yml`](examples/github-actions/culprit-pr.yml) into
+`.github/workflows/`:
+
+```yaml
+- run: pip install "culprit>=0.3.0"
+- env: { GH_TOKEN: "${{ github.token }}" }
+  run: rca --pr ${{ github.event.pull_request.number }} --fail-on high
+```
+
+## HTML report
+
+`--html` writes one self-contained file. No CDN, opens offline, attaches to CI. For a bugfix it
+renders a line-evolution timeline, tracing each line the fix touched from creation through the
+breaking commit (red) to the fix (green), with an intent card and the releases that shipped the bug.
+
+![culprit RCA report](docs/report.png)
 
 ## vs `git bisect`
 
 | | `git bisect` | culprit |
 |---|---|---|
 | Input | A reliable failing test | The fix diff (or a stack trace) |
-| Method | Checks out commits and runs the test | Blames the fix's lines + `git log -L` |
-| Speed | Minutes (~log₂N test runs) | Instant |
-| Output | First bad commit | Suspect set, line evolution, intent, lifecycle, completeness, risk score |
+| Method | Checks out commits and runs the test | Blames the fix's lines plus `git log -L` |
+| Speed | Minutes (about log2(N) test runs) | Instant |
+| Output | First bad commit | Suspect set, intent, lifecycle, completeness, risk |
 | Confidence | Proof | Strong heuristic |
 
-`--bisect "<cmd>"` runs a real bisect as an optional confirmation layer — in a throwaway
-`git worktree` so your checkout is never touched. When the first failing commit matches
-the blamed suspect, the HTML report stamps it **confirmed by git bisect**. `--good` /
-`--bad` override the search bounds.
+`--bisect "<cmd>"` runs a real bisect as an optional confirmation layer, in a throwaway
+`git worktree` so your checkout is never touched. When the first failing commit matches the
+blamed suspect, the report stamps it **confirmed by git bisect**.
 
-## HTML report
+## Architecture
 
-`--html PATH` produces a single self-contained file (no CDN, opens offline). For a bugfix
-it renders a **line-evolution timeline**: for each line the fix touched, every commit that
-ever changed it from creation through the breaking commit (red) to the fix (green), each
-node expandable to its diff. Also includes:
+One normalized context in, one structured JSON result out. The only non-deterministic step
+is the optional LLM narrative, isolated behind an adapter so the engine runs with no API key.
 
-- TL;DR banner and lifecycle strip (releases that shipped the bug)
-- Introducing-PR intent card and fix-completeness callout
-- Deep links on every commit / PR / file, plus weight bars on suspects
-- Per-file filter and a copy-as-markdown button
+```mermaid
+flowchart TD
+    PR["PR, branch, or commit"] --> CTX
+    TRACE["stack trace"] --> CTX
+    CTX["pr_context<br/>normalized ctx: diff, files, commits, links"] --> CLASSIFY{"bugfix or feature?"}
 
-```bash
-rca --pr 16889 --html rca.html --open
-rca --pr 16889 --html rca.html --narrative-file why.md   # embed a pre-written narrative
+    CLASSIFY -->|bugfix| SUSPECT["suspect<br/>blame the fix's lines, rank the commits"]
+    SUSPECT --> STORY["evolution, intent, lifecycle, completeness"]
+    CLASSIFY -->|feature| BLAST["blast_radius<br/>dependents, covering tests, high-risk modules"]
+
+    STORY --> REPORT
+    BLAST --> REPORT
+    REPORT["report.build + risk score<br/>test_impact, coupling, owners"] --> OUT
+
+    DIFF["proposed diff, not yet committed"] --> VERIFY["verify_fix<br/>complete / partial / risky"]
+    VERIFY --> OUT
+
+    REPORT -.-> LLM["optional LLM narrative"]
+    LLM -.-> OUT
+
+    OUT["JSON, HTML, MCP tools, CI exit code"]
 ```
+
+Every module writes one slice of that result, so nothing cares whether the target came from
+`gh`, the REST API, local git, or a pasted stack trace. Full module map:
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Configuration
 
-Base branch resolution order: `--base` flag → `CULPRIT_BASE` env → `.culprit.toml` → `HEAD~1`.
+The base branch resolves in order: the `--base` flag, then `CULPRIT_BASE`, then `.culprit.toml`
+(`base = "origin/main"`), then `HEAD~1`. `--last` forces the latest-commit view.
 
-```toml
-# .culprit.toml
-base = "origin/main"
-```
+PR titles and labels use the GitHub CLI when present, or the unauthenticated REST API for public
+repos (set `GITHUB_TOKEN` or `GITLAB_TOKEN` to raise limits). Deep links cover GitHub, GitLab,
+Bitbucket, and Gitea. Blast radius reads imports across JS/TS, Python, Go, Java/Kotlin, Ruby,
+C/C++, C#, PHP, Rust, Scala, and Swift.
 
-`--last` forces the latest-commit view regardless of config.
-
-## Tests
+## Contributing
 
 ```bash
 pip install -e ".[dev]" && pytest
 ```
+
+Module map and data shapes: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Publishing the MCP
+server to the registries: [`docs/PUBLISHING.md`](docs/PUBLISHING.md). MIT licensed.
