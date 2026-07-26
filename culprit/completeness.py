@@ -176,9 +176,8 @@ def assess(ctx: Dict[str, Any], repo: str, suspects: List[Dict[str, Any]],
     """Return ``{symbols, other_call_sites, untouched_count, skipped_symbols,
     adds_test, is_revert, notes}``.
 
-    ``skipped_symbols`` are symbols too widely referenced to enumerate; their call
-    sites were deliberately not checked, so a caller must not read a zero
-    ``untouched_count`` as proof of completeness when this list is non-empty.
+    ``skipped_symbols`` were too widely referenced to enumerate, so a zero
+    ``untouched_count`` does not prove completeness when that list is non-empty.
     """
     globs = source_globs or DEFAULT_SOURCE_GLOBS
     diff = ctx.get("diff") or ""
@@ -193,7 +192,7 @@ def assess(ctx: Dict[str, Any], repo: str, suspects: List[Dict[str, Any]],
         if cand.lower() in _NON_SYMBOLS or not _is_defined(repo, cand, globs):
             continue
         symbols.append(cand)
-        if len(symbols) >= _MAX_SYMBOLS:  # stop grepping once the budget is full
+        if len(symbols) >= _MAX_SYMBOLS:
             break
     other_call_sites: Dict[str, List[str]] = {}
     untouched = set()
@@ -202,7 +201,7 @@ def assess(ctx: Dict[str, Any], repo: str, suspects: List[Dict[str, Any]],
         refs = _refs(repo, sym, globs)
         outside = [f for f in refs if f not in changed and not DEFAULT_TEST_RE.search(f)]
         if len(outside) > _COMMON_REFS:
-            common_symbols.append(sym)   # ubiquitous: not a fix-completeness signal
+            common_symbols.append(sym)
             continue
         if outside:
             other_call_sites[sym] = outside[:_MAX_REFS]
@@ -238,8 +237,6 @@ def assess(ctx: Dict[str, Any], repo: str, suspects: List[Dict[str, Any]],
         "symbols": symbols,
         "other_call_sites": other_call_sites,
         "untouched_count": len(untouched),
-        # Symbols too widely referenced to enumerate: their call sites were NOT
-        # checked, so a zero untouched_count here does not prove completeness.
         "skipped_symbols": common_symbols,
         "adds_test": adds_test,
         "is_revert": is_revert,

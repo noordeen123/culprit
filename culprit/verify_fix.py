@@ -30,21 +30,14 @@ def assess(repo: str, proposed_diff: str, base: Optional[str] = None) -> Dict[st
         base: optional base ref (unused currently, reserved for future blast-radius use)
 
     Returns dict with:
-        verdict            "complete" | "partial" | "risky" - the completeness
-                           axis only: "complete" = no untouched reference was
-                           left behind, "partial" = a call site was missed,
-                           "risky" = high risk. Whether a test exists is the
-                           separate confidence axis, carried by risk_level (a
-                           complete but untested fix is "complete" at medium
-                           risk, with a note), so the caller can tell "you
-                           missed a call site" apart from "you skipped the test".
+        verdict            "complete" | "partial" | "risky" - completeness only:
+                           "complete" = nothing left untouched, "partial" = a
+                           call site was missed, "risky" = high risk. Test
+                           coverage is a separate axis, carried by risk_level.
         symbols_fixed      symbol names the fix touches
         untouched_references  other files referencing those symbols the fix missed
         skipped_symbols    symbols too widely referenced to enumerate; their call
-                           sites were NOT checked, so a "complete" verdict here is
-                           unproven for them and risk is floored to at least
-                           "medium" - review these callers by hand if their
-                           contract changed
+                           sites were not checked, so risk is floored to "medium"
         tests_to_run       existing test files that cover the changed code
         adds_test          whether the fix itself includes a test file
         risk_level         "low" | "medium" | "high"
@@ -90,17 +83,11 @@ def assess(repo: str, proposed_diff: str, base: Optional[str] = None) -> Dict[st
     else:
         risk_level = "low"
 
-    # A widely-referenced symbol was skipped, so its call sites were never
-    # enumerated: untouched_count == 0 does not prove completeness here. Never
-    # report full confidence ("low") on an analysis we deliberately punted.
+    # A skipped symbol's call sites were never enumerated, so never claim full
+    # confidence ("low") on it.
     if skipped_symbols and risk_level == "low":
         risk_level = "medium"
 
-    # The verdict tracks the completeness axis only: "complete" means the fix
-    # left no untouched reference to the symbols it changed. The coverage axis
-    # (is there a test?) lives in risk_level - an untested but complete fix is
-    # "complete" at medium risk, not "partial". "partial" is reserved for a fix
-    # that genuinely missed call sites.
     if untouched_count == 0:
         verdict = "complete"
     elif risk_level == "high":
