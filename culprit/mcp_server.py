@@ -62,7 +62,7 @@ mcp = FastMCP(
         "  3. get_evolution()     - line-by-line history of the exact buggy lines\n"
         "  4. get_intent()        - what the author was trying to do in the suspect commit\n"
         "  5. check_completeness()- are there other call sites the fix missed?\n"
-        "  6. verify_fix()        - check proposed diff pre-commit; iterate until verdict='complete'\n"
+        "  6. verify_fix()        - check proposed diff pre-commit; iterate until verdict='complete' (then add a test if risk_level flags one)\n"
         "  7. get_risk_score()    - QA gate score (use with --fail-on in CI)\n\n"
         "For a stack trace with no fix in hand, start with from_trace() instead of analyze(). "
         "All tools are read-only; they never modify the repo or create commits."
@@ -219,7 +219,10 @@ def verify_fix(repo: str, proposed_diff: str, base: str = None) -> dict:
     """Check fix completeness against a raw unified diff before committing.
 
     Runs completeness + test-impact analysis on the proposed diff and returns a verdict.
-    Iterate until verdict == "complete" before committing.
+    Iterate until verdict == "complete" (no untouched call sites). "complete"
+    covers the root cause but does not imply a test exists - a complete but
+    untested fix comes back at risk_level "medium" with a note, so check
+    risk_level/notes and add the test before committing.
 
     Returns: {verdict: "complete"|"partial"|"risky", symbols_fixed: [...],
               untouched_references: [...], tests_to_run: [...], adds_test: bool,
