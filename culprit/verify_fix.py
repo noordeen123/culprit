@@ -30,9 +30,14 @@ def assess(repo: str, proposed_diff: str, base: Optional[str] = None) -> Dict[st
         base: optional base ref (unused currently, reserved for future blast-radius use)
 
     Returns dict with:
-        verdict            "complete" | "partial" | "risky"
+        verdict            "complete" | "partial" | "risky" - completeness only:
+                           "complete" = nothing left untouched, "partial" = a
+                           call site was missed, "risky" = high risk. Test
+                           coverage is a separate axis, carried by risk_level.
         symbols_fixed      symbol names the fix touches
         untouched_references  other files referencing those symbols the fix missed
+        skipped_symbols    symbols too widely referenced to enumerate; their call
+                           sites were not checked, so risk is floored to "medium"
         tests_to_run       existing test files that cover the changed code
         adds_test          whether the fix itself includes a test file
         risk_level         "low" | "medium" | "high"
@@ -55,6 +60,7 @@ def assess(repo: str, proposed_diff: str, base: Optional[str] = None) -> Dict[st
     untouched_count: int = comp.get("untouched_count", 0)
     adds_test: bool = comp.get("adds_test", False)
     is_revert: bool = comp.get("is_revert", False)
+    skipped_symbols: List[str] = comp.get("skipped_symbols", [])
 
     # Flatten untouched references, preserving per-symbol order.
     seen_refs: set = set()
@@ -77,12 +83,21 @@ def assess(repo: str, proposed_diff: str, base: Optional[str] = None) -> Dict[st
     else:
         risk_level = "low"
 
-    if untouched_count == 0 and has_coverage:
+    # A skipped symbol's call sites were never enumerated, so never claim full
+    # confidence ("low") on it.
+    if skipped_symbols and risk_level == "low":
+        risk_level = "medium"
+
+    if untouched_count == 0:
         verdict = "complete"
     elif risk_level == "high":
         verdict = "risky"
     else:
         verdict = "partial"
+
+    if verdict == "complete" and not has_coverage:
+        notes.append("root cause fully covered, but no test verifies it; "
+                     "add one before committing")
 
     if is_revert:
         notes.append("fix appears to be a revert of the introducing commit")
@@ -91,6 +106,7 @@ def assess(repo: str, proposed_diff: str, base: Optional[str] = None) -> Dict[st
         "verdict": verdict,
         "symbols_fixed": symbols,
         "untouched_references": untouched_refs,
+        "skipped_symbols": skipped_symbols,
         "tests_to_run": tests_to_run,
         "adds_test": adds_test,
         "risk_level": risk_level,

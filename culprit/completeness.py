@@ -44,8 +44,29 @@ _KEYWORDS = {
     "else", "for", "while", "switch", "case", "true", "false", "null", "none",
 }
 
+# Names that must never be treated as a "symbol" even when the repo defines one:
+# language builtins, ubiquitous container/str methods, and common test/log noise.
+# The repo-defined check (_is_defined) is the real filter; this list only catches
+# project methods that happen to share a builtin-like name (e.g. `def get`).
+_NON_SYMBOLS = frozenset({
+    "get", "set", "any", "all", "len", "print", "str", "int", "float", "bool",
+    "list", "dict", "tuple", "open", "range", "enumerate", "zip", "map", "filter",
+    "sorted", "reversed", "min", "max", "sum", "abs", "round", "isinstance",
+    "issubclass", "hasattr", "getattr", "setattr", "format", "join", "split",
+    "strip", "rstrip", "lstrip", "replace", "startswith", "endswith", "append",
+    "extend", "insert", "pop", "keys", "values", "items", "setdefault", "update",
+    "add", "remove", "super", "repr", "type", "vars", "dir", "next", "iter",
+    "callable",
+    "require", "assert", "expect", "describe", "it", "test", "console", "log",
+    "printf", "println", "new",
+})
+
 _MAX_SYMBOLS = 5
 _MAX_REFS = 20
+# A symbol referenced across more than this many files is core infrastructure,
+# not a helper the fix might have half-updated - flagging dozens of call sites is
+# noise, so we skip it (and note it) rather than cry wolf.
+_COMMON_REFS = 20
 
 
 def _is_source(path: str, source_globs: List[str]) -> bool:
@@ -91,8 +112,7 @@ def _symbols_from_diff(diff: str, source_globs: List[str]) -> List[str]:
                 name = cm.group(1)
                 if name not in _KEYWORDS and name not in called:
                     called.append(name)
-    out = headings + [c for c in called if c not in headings]
-    return out[:_MAX_SYMBOLS]
+    return headings + [c for c in called if c not in headings]
 
 
 def _refs(repo: str, token: str, source_globs: List[str]) -> List[str]:
@@ -111,6 +131,35 @@ def _refs(repo: str, token: str, source_globs: List[str]) -> List[str]:
     return [f for f in out.splitlines() if f.strip()]
 
 
+def _is_defined(repo: str, token: str, source_globs: List[str]) -> bool:
+    """True if the repo defines ``token`` in a source file.
+
+    Two definition shapes, both POSIX-safe ``git grep -E`` (git grep has no \\b,
+    so boundaries are spelled out), same style as ``_refs``:
+
+    1. Keyword-led: ``def``/``class``/``func``/``struct``/... ``token`` - Python,
+       JS, Go, Rust, Ruby, TypeScript.
+    2. Brace-language signature whose body opens on the same line:
+       ``int token(args) {``, ``public void token() {``, ``bool token() const {``
+       - Java, C#, C/C++, and object-method shorthand, none of which carry a
+       leading def keyword. The arg list and the run up to ``{`` both exclude
+       ``)`` and ``{``, so an ordinary call like ``if (token()) {`` cannot pass
+       for a definition (its inner ``)`` stops the match short of the brace).
+
+    Restricting symbols to names the repo actually defines drops builtins and
+    library calls the fix merely *uses* (``isinstance``, ``ArgumentParser``, ...).
+    """
+    if not token:
+        return False
+    tok = re.escape(token)
+    keyword = (r"(def|class|function|func|fn|interface|struct|type|sub)"
+               r"[[:space:]]+{}([^A-Za-z0-9_]|$)".format(tok))
+    signature = tok + r"[[:space:]]*\([^{}();]*\)[A-Za-z_[:space:]]*\{"
+    args = ["grep", "-l", "-I", "-E", "-e", keyword, "-e", signature, "--"] + source_globs
+    out = _proc.git(args, repo, check=False)
+    return bool(out.strip())
+
+
 def _diff_lines(diff: str, sign: str) -> set:
     """Stripped content of added (`+`) or removed (`-`) lines in a unified diff."""
     out = set()
@@ -124,22 +173,43 @@ def _diff_lines(diff: str, sign: str) -> set:
 
 def assess(ctx: Dict[str, Any], repo: str, suspects: List[Dict[str, Any]],
            source_globs: Optional[List[str]] = None) -> Dict[str, Any]:
-    """Return ``{symbols, other_call_sites, untouched_count, adds_test, is_revert, notes}``."""
+    """Return ``{symbols, other_call_sites, untouched_count, skipped_symbols,
+    adds_test, is_revert, notes}``.
+
+    ``skipped_symbols`` were too widely referenced to enumerate, so a zero
+    ``untouched_count`` does not prove completeness when that list is non-empty.
+    """
     globs = source_globs or DEFAULT_SOURCE_GLOBS
     diff = ctx.get("diff") or ""
     changed = set(ctx.get("changed_files") or [])
     notes: List[str] = []
 
     # Other references to the changed symbols that the fix did not touch.
-    symbols = _symbols_from_diff(diff, globs)
+    # Keep only names the repo actually defines and that aren't builtins/methods,
+    # so "other call sites" reflects real project symbols, not `get`/`isinstance`.
+    symbols: List[str] = []
+    for cand in _symbols_from_diff(diff, globs):
+        if cand.lower() in _NON_SYMBOLS or not _is_defined(repo, cand, globs):
+            continue
+        symbols.append(cand)
+        if len(symbols) >= _MAX_SYMBOLS:
+            break
     other_call_sites: Dict[str, List[str]] = {}
     untouched = set()
+    common_symbols: List[str] = []
     for sym in symbols:
         refs = _refs(repo, sym, globs)
-        outside = [f for f in refs if f not in changed and not DEFAULT_TEST_RE.search(f)][:_MAX_REFS]
+        outside = [f for f in refs if f not in changed and not DEFAULT_TEST_RE.search(f)]
+        if len(outside) > _COMMON_REFS:
+            common_symbols.append(sym)
+            continue
         if outside:
-            other_call_sites[sym] = outside
-            untouched.update(outside)
+            other_call_sites[sym] = outside[:_MAX_REFS]
+            untouched.update(outside[:_MAX_REFS])
+    if common_symbols:
+        notes.append("skipped {} widely-referenced symbol(s) ({}); used across the "
+                     "codebase, not a fix-completeness signal".format(
+                         len(common_symbols), ", ".join(common_symbols)))
 
     # Did the fix ship a test?
     adds_test = any(DEFAULT_TEST_RE.search(f) for f in changed)
@@ -167,6 +237,7 @@ def assess(ctx: Dict[str, Any], repo: str, suspects: List[Dict[str, Any]],
         "symbols": symbols,
         "other_call_sites": other_call_sites,
         "untouched_count": len(untouched),
+        "skipped_symbols": common_symbols,
         "adds_test": adds_test,
         "is_revert": is_revert,
         "notes": notes,
