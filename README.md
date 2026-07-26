@@ -174,6 +174,38 @@ breaking commit (red) to the fix (green), with an intent card and the releases t
 `git worktree` so your checkout is never touched. When the first failing commit matches the
 blamed suspect, the report stamps it **confirmed by git bisect**.
 
+## Architecture
+
+One normalized context in, one structured JSON result out. The only non-deterministic step
+is the optional LLM narrative, isolated behind an adapter so the engine runs with no API key.
+
+```mermaid
+flowchart TD
+    PR["PR, branch, or commit"] --> CTX
+    TRACE["stack trace"] --> CTX
+    CTX["pr_context<br/>normalized ctx: diff, files, commits, links"] --> CLASSIFY{"bugfix or feature?"}
+
+    CLASSIFY -->|bugfix| SUSPECT["suspect<br/>blame the fix's lines, rank the commits"]
+    SUSPECT --> STORY["evolution, intent, lifecycle, completeness"]
+    CLASSIFY -->|feature| BLAST["blast_radius<br/>dependents, covering tests, high-risk modules"]
+
+    STORY --> REPORT
+    BLAST --> REPORT
+    REPORT["report.build + risk score<br/>test_impact, coupling, owners"] --> OUT
+
+    DIFF["proposed diff, not yet committed"] --> VERIFY["verify_fix<br/>complete / partial / risky"]
+    VERIFY --> OUT
+
+    REPORT -.-> LLM["optional LLM narrative"]
+    LLM -.-> OUT
+
+    OUT["JSON, HTML, MCP tools, CI exit code"]
+```
+
+Every module writes one slice of that result, so nothing cares whether the target came from
+`gh`, the REST API, local git, or a pasted stack trace. Full module map:
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
 ## Configuration
 
 The base branch resolves in order: the `--base` flag, then `CULPRIT_BASE`, then `.culprit.toml`
