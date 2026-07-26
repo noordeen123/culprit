@@ -216,9 +216,13 @@ def main(argv: Optional[list] = None) -> int:
     args = p.parse_args(argv)
 
     if args.mode == "api" and not os.environ.get("ANTHROPIC_API_KEY"):
-        sys.stderr.write(
-            "note: --mode api requires ANTHROPIC_API_KEY; falling back to --mode harness\n"
-        )
+        # --verify-fix and --select-tests return structured data and never build a
+        # narrative, so the reasoning mode is irrelevant to them. Fall back either
+        # way, but only mention the key where it would actually have been used.
+        if not (args.verify_fix or args.select_tests):
+            sys.stderr.write(
+                "note: --mode api requires ANTHROPIC_API_KEY; falling back to --mode harness\n"
+            )
         args.mode = "harness"
 
     repo = os.path.abspath(os.path.expanduser(args.repo))
