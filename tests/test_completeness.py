@@ -235,4 +235,5 @@ def test_assess_skips_ubiquitous_symbol(git_repo, monkeypatch):
     ctx = {"diff": diff, "changed_files": ["lib.py"]}
     res = completeness.assess(ctx, git_repo, [], source_globs=["*.py"])
     assert "widely_used" not in res["other_call_sites"]        # too common -> skipped
+    assert res["skipped_symbols"] == ["widely_used"]           # skip is an explicit field
     assert any("widely_used" in n for n in res["notes"])       # skip is noted

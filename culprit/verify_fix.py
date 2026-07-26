@@ -40,6 +40,11 @@ def assess(repo: str, proposed_diff: str, base: Optional[str] = None) -> Dict[st
                            missed a call site" apart from "you skipped the test".
         symbols_fixed      symbol names the fix touches
         untouched_references  other files referencing those symbols the fix missed
+        skipped_symbols    symbols too widely referenced to enumerate; their call
+                           sites were NOT checked, so a "complete" verdict here is
+                           unproven for them and risk is floored to at least
+                           "medium" - review these callers by hand if their
+                           contract changed
         tests_to_run       existing test files that cover the changed code
         adds_test          whether the fix itself includes a test file
         risk_level         "low" | "medium" | "high"
@@ -62,6 +67,7 @@ def assess(repo: str, proposed_diff: str, base: Optional[str] = None) -> Dict[st
     untouched_count: int = comp.get("untouched_count", 0)
     adds_test: bool = comp.get("adds_test", False)
     is_revert: bool = comp.get("is_revert", False)
+    skipped_symbols: List[str] = comp.get("skipped_symbols", [])
 
     # Flatten untouched references, preserving per-symbol order.
     seen_refs: set = set()
@@ -83,6 +89,12 @@ def assess(repo: str, proposed_diff: str, base: Optional[str] = None) -> Dict[st
         risk_level = "medium"
     else:
         risk_level = "low"
+
+    # A widely-referenced symbol was skipped, so its call sites were never
+    # enumerated: untouched_count == 0 does not prove completeness here. Never
+    # report full confidence ("low") on an analysis we deliberately punted.
+    if skipped_symbols and risk_level == "low":
+        risk_level = "medium"
 
     # The verdict tracks the completeness axis only: "complete" means the fix
     # left no untouched reference to the symbols it changed. The coverage axis
@@ -107,6 +119,7 @@ def assess(repo: str, proposed_diff: str, base: Optional[str] = None) -> Dict[st
         "verdict": verdict,
         "symbols_fixed": symbols,
         "untouched_references": untouched_refs,
+        "skipped_symbols": skipped_symbols,
         "tests_to_run": tests_to_run,
         "adds_test": adds_test,
         "risk_level": risk_level,
