@@ -22,6 +22,8 @@ def test_top_level_required_fields():
     assert re.fullmatch(r"\d+\.\d+\.\d+", SERVER["version"])
     assert SERVER["repository"]["source"] == "github"
     assert SERVER["packages"], "at least one package entry is required"
+    # The registry rejects descriptions longer than 100 characters (422).
+    assert len(SERVER["description"]) <= 100
 
 
 def test_name_matches_the_pypi_ownership_marker():

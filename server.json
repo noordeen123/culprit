@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.noordeen123/culprit",
   "title": "culprit",
-  "description": "Deterministic, offline root-cause analysis: find the commit that introduced a bug and verify a fix is complete before committing.",
+  "description": "Deterministic, offline root-cause analysis and pre-commit fix verification for coding agents.",
   "repository": {
     "url": "https://github.com/noordeen123/culprit",
     "source": "github"
