@@ -17,7 +17,7 @@
 <p align="center">
   <a href="#quick-start">Quick start</a> ·
   <a href="#the-tools">Tools</a> ·
-  <a href="#accuracy">Accuracy</a> ·
+  <a href="#does-it-actually-work">Accuracy</a> ·
   <a href="docs/ARCHITECTURE.md">Architecture</a> ·
   <a href="https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.noordeen123/culprit">MCP registry</a>
 </p>
@@ -51,6 +51,21 @@ culprit answers both from git history:
 | "What introduced this bug?" | Ranked suspect commits, the author's intent, the releases it shipped in |
 | "Is my fix complete?" | `verify_fix`: missed call sites, whether a test shipped, a risk level |
 | "What could this change break?" | Reverse-import dependents, covering tests, high-risk shared modules |
+
+## Does it actually work?
+
+Benchmarked against 50 real regressions, 25 from [git](https://github.com/git/git) and 25 from
+[systemd](https://github.com/systemd/systemd), where the introducing commit is known from each
+fix's `Fixes:` trailer (author-verified ground truth). Given only the fix commit, culprit blames
+the removed lines to rank the commits that introduced the bug.
+
+| Metric | Result |
+|---|---|
+| Introducing commit ranked #1 | **50%** (25/50) |
+| Introducing commit in the top-5 suspect set | **66%** (33/50) |
+
+Deterministic and offline, on large C codebases the engine has never seen. Reproduce with
+`python benchmarks/run.py`, which clones the repos and scores every case.
 
 ## Quick start
 
@@ -112,21 +127,6 @@ The agent runs this on its own diff before committing:
   a test shipped, and what to do next.
 
 Loop until `complete`, then commit. That is the whole idea.
-
-## Accuracy
-
-Benchmarked against 50 real regressions, 25 from [git](https://github.com/git/git) and 25 from
-[systemd](https://github.com/systemd/systemd), where the introducing commit is known from each
-fix's `Fixes:` trailer (author-verified ground truth). Given only the fix commit, culprit blames
-the removed lines to rank the commits that introduced the bug.
-
-| Metric | Result |
-|---|---|
-| Introducing commit ranked #1 | **50%** (25/50) |
-| Introducing commit in the top-5 suspect set | **66%** (33/50) |
-
-Deterministic and offline, on large C codebases the engine has never seen. Reproduce with
-`python benchmarks/run.py`, which clones the repos and scores every case.
 
 ## CLI and CI
 
