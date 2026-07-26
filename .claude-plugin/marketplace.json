@@ -1,0 +1,15 @@
+{
+  "name": "culprit",
+  "description": "Deterministic, offline root-cause analysis for agents: the culprit RCA engine and its pre-commit verify_fix gate, as a Claude Code plugin.",
+  "owner": {
+    "name": "Noordeen",
+    "url": "https://github.com/noordeen123/culprit"
+  },
+  "plugins": [
+    {
+      "name": "culprit",
+      "source": "./plugin",
+      "description": "Deterministic, offline root-cause analysis for agents: suspect commits for a regression, blast radius for a feature, and a pre-commit verify_fix completeness gate."
+    }
+  ]
+}

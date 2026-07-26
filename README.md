@@ -6,6 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 Root-cause analysis for a pull request or branch. Read-only — never modifies your repo or PR.
+Runs as a CLI, a CI gate, or an MCP server your coding agent (or subagent) calls to verify a fix is complete before it commits.
 
 Given a PR or branch, culprit classifies it as a bugfix or feature:
 
@@ -46,6 +47,22 @@ for standalone use (`claude-opus-4-8` default, `--fast` for `claude-sonnet-4-6`)
 ```
 
 Full module map and data shapes: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+## Accuracy
+
+Suspect-finding is benchmarked against 50 real regressions — 25 from
+[git](https://github.com/git/git), 25 from [systemd](https://github.com/systemd/systemd) —
+where the introducing commit is known from each fix's `Fixes:` trailer (author-verified
+ground truth). culprit is run exactly as you would: given only the fix commit, it blames
+the removed lines to rank the commits that introduced the bug.
+
+| Metric | Result |
+|---|---|
+| Introducing commit ranked #1 (top-1) | **50%** (25/50) |
+| Introducing commit in the top-5 suspect set | **66%** (33/50) |
+
+Fully deterministic and offline, on large C codebases the engine has never seen.
+Reproduce: `python benchmarks/run.py` (clones the repos, scores every case).
 
 ## Install
 
@@ -115,7 +132,15 @@ Claude Code, Cursor, Windsurf, VS Code, Codex CLI, Zed, Continue.dev, Cline, Ama
 Goose, or any agent built on the MCP SDK. Requires Python 3.10+ and
 [uv](https://docs.astral.sh/uv/) (`brew install uv`).
 
-**Claude Code:**
+**Claude Code (plugin — recommended):** installs the MCP server *and* a skill that
+tells the agent when to reach for it (RCA on a regression, `verify_fix` before a commit):
+
+```bash
+/plugin marketplace add noordeen123/culprit
+/plugin install culprit@culprit
+```
+
+**Claude Code (MCP server only):**
 
 ```bash
 claude mcp add culprit -- uvx --from "culprit[mcp]" culprit-mcp
@@ -151,9 +176,9 @@ varies by client):
 | `classify_change` | Bugfix vs feature with evidence |
 | `from_trace` | RCA from a stack trace — no diff or PR required |
 
-For a skill-based alternative (agent runs the CLI and writes the narrative), copy
-[`examples/claude-code-skill/SKILL.md`](examples/claude-code-skill/SKILL.md) into
-`.claude/skills/rca/` and fill in `<REPO_PATH>` / `<BASE_BRANCH>`.
+The Claude Code plugin above bundles this skill for you. For a non-plugin setup (or
+another agent), copy [`examples/claude-code-skill/SKILL.md`](examples/claude-code-skill/SKILL.md)
+into `.claude/skills/rca/` and fill in `<REPO_PATH>` / `<BASE_BRANCH>`.
 
 ## vs `git bisect`
 

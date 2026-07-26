@@ -1,0 +1,28 @@
+{
+  "name": "culprit",
+  "version": "0.1.0",
+  "description": "Deterministic, offline root-cause analysis for agents: find the commit that introduced a bug, map a feature's blast radius, and verify a fix is complete before committing.",
+  "author": {
+    "name": "Noordeen"
+  },
+  "homepage": "https://github.com/noordeen123/culprit",
+  "repository": "https://github.com/noordeen123/culprit",
+  "license": "MIT",
+  "keywords": [
+    "rca",
+    "root-cause",
+    "git",
+    "blame",
+    "regression",
+    "agents",
+    "subagent",
+    "mcp",
+    "verify-fix"
+  ],
+  "mcpServers": {
+    "culprit": {
+      "command": "uvx",
+      "args": ["--from", "culprit[mcp]", "culprit-mcp"]
+    }
+  }
+}
