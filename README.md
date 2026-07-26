@@ -28,29 +28,23 @@
   <em>A real run. The fix patched one caller of <code>parse_config</code> and missed two, so it scores <code>partial</code>.</em>
 </p>
 
-## Highlights
-
-- ⚡️ **Instant root cause.** No test runs, no bisect. Blames the fix's own lines back through refactors.
-- ✅ **`verify_fix` gate.** Tells an agent if its patch is `complete`, `partial`, or `risky`, before commit.
-- 🔌 **MCP-native.** 11 tools over stdio, on the official MCP registry. One-command Claude Code plugin.
-- 📊 **Benchmarked.** 50 real regressions from git and systemd. Reproducible, not a vibe.
-- 🔒 **Read-only and offline.** Never writes to your repo or PR. No API key, no network.
-- 🧠 **Structured output.** JSON grounded in git, so an agent reasons over facts instead of guessing.
-- 🗣️ **Language-agnostic.** Suspects work anywhere git does. Blast radius reads 12 language families.
-
 ## Why an agent needs this
 
 An agent is good at writing a patch and bad at knowing whether the patch is **done**.
 It cannot see that the helper it just changed has three other callers, or that the bug
-it is fixing was introduced by a refactor two years ago.
-
-culprit answers both from git history:
+it is fixing was introduced by a refactor two years ago. culprit answers both from git
+history, as structured JSON it can act on rather than prose it has to interpret:
 
 | The agent asks | culprit answers |
 |---|---|
 | "What introduced this bug?" | Ranked suspect commits, the author's intent, the releases it shipped in |
 | "Is my fix complete?" | `verify_fix`: missed call sites, whether a test shipped, a risk level |
 | "What could this change break?" | Reverse-import dependents, covering tests, high-risk shared modules |
+
+- ⚡️ **Instant.** No test runs, no bisect. It blames the fix's own lines back through refactors.
+- 🔒 **Read-only and offline.** Never writes to your repo or PR. No API key, no network.
+- 🔌 **MCP-native.** 11 tools over stdio, on the official MCP registry, plus a one-command plugin.
+- 🗣️ **Language-agnostic.** Suspects work anywhere git does. Blast radius reads 12 language families.
 
 ## Does it actually work?
 
