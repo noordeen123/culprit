@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 470" width="780" height="470" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15">
+  <rect width="780" height="470" rx="10" fill="#0d1117"/>
+  <rect x="1" y="1" width="778" height="468" rx="9" fill="#161b22" stroke="#30363d"/>
+  <rect x="1" y="1" width="778" height="40" rx="9" fill="#0d1117"/>
+  <rect x="1" y="30" width="778" height="12" fill="#0d1117"/>
+  <circle cx="24" cy="21" r="6" fill="#ff5f56"/>
+  <circle cx="46" cy="21" r="6" fill="#ffbd2e"/>
+  <circle cx="68" cy="21" r="6" fill="#27c93f"/>
+  <text x="390" y="26" fill="#8b949e" font-size="13" text-anchor="middle">culprit  ~  verify a fix before you commit</text>
+  <g opacity="1"><animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.0267;0.0467;0.8533;0.9200;1" dur="15.0s" repeatCount="indefinite"/><text x="26" y="78" fill="#8b949e" font-style="italic"># your agent just wrote a fix. is it actually done?</text></g>
+  <g opacity="1"><animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.0767;0.0967;0.8533;0.9200;1" dur="15.0s" repeatCount="indefinite"/><text x="26" y="103" font-family="inherit"><tspan fill="#7ee787" font-weight="700">$ </tspan><tspan fill="#c9d1d9">rca --verify-fix fix.diff</tspan></text></g>
+  <g opacity="1"><animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.1267;0.1467;0.8533;0.9200;1" dur="15.0s" repeatCount="indefinite"/></g>
+  <g opacity="1"><animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.1567;0.1767;0.8533;0.9200;1" dur="15.0s" repeatCount="indefinite"/><text x="26" y="153" font-family="inherit"><tspan fill="#8b949e">symbols_fixed</tspan><tspan dx="75.60000000000001" fill="#c9d1d9">parse_config</tspan></text></g>
+  <g opacity="1"><animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.2067;0.2267;0.8533;0.9200;1" dur="15.0s" repeatCount="indefinite"/><text x="26" y="178" fill="#8b949e" font-family="inherit">verdict</text><rect x="216" y="163" rx="4" width="79" height="20" fill="#3b2f0b"/><text x="224" y="178" fill="#d29922" font-size="13" font-weight="700" font-family="inherit">partial</text></g>
+  <g opacity="1"><animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.2567;0.2767;0.8533;0.9200;1" dur="15.0s" repeatCount="indefinite"/><text x="26" y="203" font-family="inherit"><tspan fill="#8b949e">untouched_references</tspan><tspan dx="16.8" fill="#c9d1d9">loader.py, cli.py</tspan></text></g>
+  <g opacity="1"><animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.3067;0.3267;0.8533;0.9200;1" dur="15.0s" repeatCount="indefinite"/><text x="26" y="228" font-family="inherit"><tspan fill="#8b949e">risk_level</tspan><tspan dx="100.80000000000001" fill="#c9d1d9">medium</tspan></text></g>
+  <g opacity="1"><animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.3567;0.3767;0.8533;0.9200;1" dur="15.0s" repeatCount="indefinite"/><text x="26" y="253" font-family="inherit"><tspan fill="#58a6ff">→ </tspan><tspan fill="#8b949e">2 call sites still use the old contract</tspan></text></g>
+  <g opacity="1"><animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.4067;0.4267;0.8533;0.9200;1" dur="15.0s" repeatCount="indefinite"/></g>
+  <g opacity="1"><animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.4367;0.4567;0.8533;0.9200;1" dur="15.0s" repeatCount="indefinite"/><text x="26" y="303" fill="#8b949e" font-style="italic"># agent patches loader.py and cli.py, re-runs</text></g>
+  <g opacity="1"><animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.4867;0.5067;0.8533;0.9200;1" dur="15.0s" repeatCount="indefinite"/><text x="26" y="328" font-family="inherit"><tspan fill="#7ee787" font-weight="700">$ </tspan><tspan fill="#c9d1d9">rca --verify-fix fix.diff</tspan></text></g>
+  <g opacity="1"><animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.5367;0.5567;0.8533;0.9200;1" dur="15.0s" repeatCount="indefinite"/></g>
+  <g opacity="1"><animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.5667;0.5867;0.8533;0.9200;1" dur="15.0s" repeatCount="indefinite"/><text x="26" y="378" fill="#8b949e" font-family="inherit">verdict</text><rect x="216" y="363" rx="4" width="88" height="20" fill="#122117"/><text x="224" y="378" fill="#3fb950" font-size="13" font-weight="700" font-family="inherit">complete</text></g>
+  <g opacity="1"><animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.6167;0.6367;0.8533;0.9200;1" dur="15.0s" repeatCount="indefinite"/><text x="26" y="403" font-family="inherit"><tspan fill="#8b949e">risk_level</tspan><tspan dx="100.80000000000001" fill="#c9d1d9">low</tspan></text></g>
+  <g opacity="1"><animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.6667;0.6867;0.8533;0.9200;1" dur="15.0s" repeatCount="indefinite"/><text x="26" y="428" font-family="inherit"><tspan fill="#3fb950" font-weight="700">✓ </tspan><tspan fill="#3fb950" font-weight="700">safe to commit</tspan></text></g>
+  <rect x="176" y="419" width="9" height="18" fill="#3fb950"><animate attributeName="opacity" values="1;1;0;0" keyTimes="0;0.5;0.5;1" dur="1s" repeatCount="indefinite"/></rect>
+</svg>
