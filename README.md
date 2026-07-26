@@ -190,40 +190,15 @@ blamed suspect, the report stamps it **confirmed by git bisect**.
 One normalized context in, one structured JSON result out. The only non-deterministic step
 is the optional LLM narrative, isolated behind an adapter so the engine runs with no API key.
 
-```mermaid
-flowchart TD
-    A["PR, branch, or commit"] --> CTX
-    B["stack trace"] --> CTX
-    C["proposed diff, uncommitted"] --> V
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/workflow-dark.svg">
+    <img src="docs/workflow-light.svg" width="980" alt="Two pipelines. Root cause: input, pr_context, classify, suspect, risk score, output. Verify: proposed diff, verify_fix, verdict.">
+  </picture>
+</p>
 
-    subgraph engine["deterministic · git only · read-only"]
-        CTX["pr_context<br/>one normalized context"] --> Q{"bugfix or feature?"}
-        Q -->|bugfix| S["suspect<br/>rank the introducing commits"]
-        S --> E["evolution · intent<br/>lifecycle · completeness"]
-        Q -->|feature| BR["blast_radius<br/>dependents · tests · hotspots"]
-        E --> R["risk score<br/>test_impact · coupling · owners"]
-        BR --> R
-        V["verify_fix<br/>complete / partial / risky"]
-    end
-
-    R --> OUT["JSON · HTML · MCP tools · CI exit code"]
-    V --> OUT
-    R -. "optional, no API key" .-> L["LLM narrative"]
-    L -.-> OUT
-
-    style engine fill:none,stroke:#8b949e,stroke-width:1px,stroke-dasharray:5 5
-    classDef accent stroke:#58a6ff,stroke-width:2px
-    classDef gate stroke:#3fb950,stroke-width:2px
-    classDef out stroke:#a371f7,stroke-width:2px
-    classDef opt stroke:#8b949e,stroke-dasharray:4 3
-    class A,B,C accent
-    class V gate
-    class OUT out
-    class L opt
-```
-
-Every module writes one slice of that result, so nothing cares whether the target came from
-`gh`, the REST API, local git, or a pasted stack trace. Full module map:
+Two lanes, one engine. Every module writes one slice of the result, so nothing cares whether
+the target came from `gh`, the REST API, local git, or a pasted stack trace. Full module map:
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Configuration
