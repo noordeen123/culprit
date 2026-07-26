@@ -154,11 +154,22 @@ rca serve --repo /path         # local web UI with a base picker
 
 ## HTML report
 
-`--html` writes one self-contained file. No CDN, opens offline, attaches to CI. For a bugfix it
-renders a line-evolution timeline, tracing each line the fix touched from creation through the
-breaking commit (red) to the fix (green), with an intent card and the releases that shipped the bug.
+`--html` writes one self-contained file. No CDN, opens offline, attaches to CI. It opens with the
+verdict: a scored QA risk with the factors behind it, and the prime suspect with how long the bug
+lived.
 
-![culprit RCA report](docs/report.png)
+<p align="center">
+  <img src="docs/report-verdict.png" width="820" alt="QA risk scored medium 48 out of 100 with contributing factors, and the prime suspect commit with the releases it shipped in">
+</p>
+
+Then it reconstructs how the bug got there. Every commit that touched the buggy line, from
+creation through the commit that broke it (red, with the exact diff) to the fix (green):
+
+<p align="center">
+  <img src="docs/report-timeline.png" width="820" alt="Line evolution timeline: origin, three modifications, the breaking commit changing w times h to w plus h, then the fix restoring it">
+</p>
+
+<p align="center"><em>Every node expands to its diff. <a href="docs/report.png">See the full report</a>.</em></p>
 
 ## vs `git bisect`
 
@@ -179,31 +190,15 @@ blamed suspect, the report stamps it **confirmed by git bisect**.
 One normalized context in, one structured JSON result out. The only non-deterministic step
 is the optional LLM narrative, isolated behind an adapter so the engine runs with no API key.
 
-```mermaid
-flowchart TD
-    PR["PR, branch, or commit"] --> CTX
-    TRACE["stack trace"] --> CTX
-    CTX["pr_context<br/>normalized ctx: diff, files, commits, links"] --> CLASSIFY{"bugfix or feature?"}
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/workflow-dark.svg">
+    <img src="docs/workflow-light.svg" width="980" alt="Two pipelines. Root cause: input, pr_context, classify, suspect, risk score, output. Verify: proposed diff, verify_fix, verdict.">
+  </picture>
+</p>
 
-    CLASSIFY -->|bugfix| SUSPECT["suspect<br/>blame the fix's lines, rank the commits"]
-    SUSPECT --> STORY["evolution, intent, lifecycle, completeness"]
-    CLASSIFY -->|feature| BLAST["blast_radius<br/>dependents, covering tests, high-risk modules"]
-
-    STORY --> REPORT
-    BLAST --> REPORT
-    REPORT["report.build + risk score<br/>test_impact, coupling, owners"] --> OUT
-
-    DIFF["proposed diff, not yet committed"] --> VERIFY["verify_fix<br/>complete / partial / risky"]
-    VERIFY --> OUT
-
-    REPORT -.-> LLM["optional LLM narrative"]
-    LLM -.-> OUT
-
-    OUT["JSON, HTML, MCP tools, CI exit code"]
-```
-
-Every module writes one slice of that result, so nothing cares whether the target came from
-`gh`, the REST API, local git, or a pasted stack trace. Full module map:
+Two lanes, one engine. Every module writes one slice of the result, so nothing cares whether
+the target came from `gh`, the REST API, local git, or a pasted stack trace. Full module map:
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Configuration
