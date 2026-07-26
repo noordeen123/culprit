@@ -154,11 +154,22 @@ rca serve --repo /path         # local web UI with a base picker
 
 ## HTML report
 
-`--html` writes one self-contained file. No CDN, opens offline, attaches to CI. For a bugfix it
-renders a line-evolution timeline, tracing each line the fix touched from creation through the
-breaking commit (red) to the fix (green), with an intent card and the releases that shipped the bug.
+`--html` writes one self-contained file. No CDN, opens offline, attaches to CI. It opens with the
+verdict: a scored QA risk with the factors behind it, and the prime suspect with how long the bug
+lived.
 
-![culprit RCA report](docs/report.png)
+<p align="center">
+  <img src="docs/report-verdict.png" width="820" alt="QA risk scored medium 48 out of 100 with contributing factors, and the prime suspect commit with the releases it shipped in">
+</p>
+
+Then it reconstructs how the bug got there. Every commit that touched the buggy line, from
+creation through the commit that broke it (red, with the exact diff) to the fix (green):
+
+<p align="center">
+  <img src="docs/report-timeline.png" width="820" alt="Line evolution timeline: origin, three modifications, the breaking commit changing w times h to w plus h, then the fix restoring it">
+</p>
+
+<p align="center"><em>Every node expands to its diff. <a href="docs/report.png">See the full report</a>.</em></p>
 
 ## vs `git bisect`
 
@@ -181,25 +192,34 @@ is the optional LLM narrative, isolated behind an adapter so the engine runs wit
 
 ```mermaid
 flowchart TD
-    PR["PR, branch, or commit"] --> CTX
-    TRACE["stack trace"] --> CTX
-    CTX["pr_context<br/>normalized ctx: diff, files, commits, links"] --> CLASSIFY{"bugfix or feature?"}
+    A["PR, branch, or commit"] --> CTX
+    B["stack trace"] --> CTX
+    C["proposed diff, uncommitted"] --> V
 
-    CLASSIFY -->|bugfix| SUSPECT["suspect<br/>blame the fix's lines, rank the commits"]
-    SUSPECT --> STORY["evolution, intent, lifecycle, completeness"]
-    CLASSIFY -->|feature| BLAST["blast_radius<br/>dependents, covering tests, high-risk modules"]
+    subgraph engine["deterministic · git only · read-only"]
+        CTX["pr_context<br/>one normalized context"] --> Q{"bugfix or feature?"}
+        Q -->|bugfix| S["suspect<br/>rank the introducing commits"]
+        S --> E["evolution · intent<br/>lifecycle · completeness"]
+        Q -->|feature| BR["blast_radius<br/>dependents · tests · hotspots"]
+        E --> R["risk score<br/>test_impact · coupling · owners"]
+        BR --> R
+        V["verify_fix<br/>complete / partial / risky"]
+    end
 
-    STORY --> REPORT
-    BLAST --> REPORT
-    REPORT["report.build + risk score<br/>test_impact, coupling, owners"] --> OUT
+    R --> OUT["JSON · HTML · MCP tools · CI exit code"]
+    V --> OUT
+    R -. "optional, no API key" .-> L["LLM narrative"]
+    L -.-> OUT
 
-    DIFF["proposed diff, not yet committed"] --> VERIFY["verify_fix<br/>complete / partial / risky"]
-    VERIFY --> OUT
-
-    REPORT -.-> LLM["optional LLM narrative"]
-    LLM -.-> OUT
-
-    OUT["JSON, HTML, MCP tools, CI exit code"]
+    style engine fill:none,stroke:#8b949e,stroke-width:1px,stroke-dasharray:5 5
+    classDef accent stroke:#58a6ff,stroke-width:2px
+    classDef gate stroke:#3fb950,stroke-width:2px
+    classDef out stroke:#a371f7,stroke-width:2px
+    classDef opt stroke:#8b949e,stroke-dasharray:4 3
+    class A,B,C accent
+    class V gate
+    class OUT out
+    class L opt
 ```
 
 Every module writes one slice of that result, so nothing cares whether the target came from
