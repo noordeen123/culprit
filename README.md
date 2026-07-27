@@ -71,12 +71,17 @@ three arms, isolated so no arm can read the answer from the fix commit:
 |---|---|---|---|
 | Introducing commit ranked #1 | 80% | **90%** | **90%** |
 | Introducing commit in top 5 | 90% | **100%** | **100%** |
-| Mean tool calls to get there | n/a | 15.0 | **8.9** |
+| Mean tool calls to get there | 1 | 14.9 | **8.8** (-41%) |
+| Mean tokens to get there | ~0 | 55,534 | **47,616** (-14%) |
 
 **The agent wins on accuracy, and culprit does not make it more accurate. What culprit
-does is get it there in about half the steps, in 9 of 9 cases with no reversals.** On the
-hardest case the agent needed 42 tool calls alone and 16 with culprit. culprit itself costs
-no tokens and runs in under a second.
+does is get it there in roughly half the steps for about 8,000 fewer tokens per
+investigation.** Tool calls dropped in 10 of 10 cases, tokens in 7 of 10. On the hardest
+case the agent needed 42 tool calls and 124k tokens alone, against 16 calls and 84k with
+culprit.
+
+Those savings are already net of reading culprit's output, which is counted in the third
+column. culprit's own run is one deterministic call, no model, under a second.
 
 So culprit is an accelerator for an agent, not a replacement for one, and not a smarter
 blamer than one. Method, caveats (n=10, and this slice is easier than the full 50), and

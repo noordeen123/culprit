@@ -81,8 +81,8 @@
       "C_reordered": true,
       "tokens_B": 54588,
       "tool_calls_B": 14,
-      "tokens_C": null,
-      "tool_calls_C": null
+      "tokens_C": 44029,
+      "tool_calls_C": 8
     },
     {
       "case": "26",
@@ -136,5 +136,35 @@
       "tokens_C": 42583,
       "tool_calls_C": 10
     }
-  ]
+  ],
+  "summary": {
+    "n": 10,
+    "top1": {
+      "culprit": 0.8,
+      "agent": 0.9,
+      "agent_plus_culprit": 0.9
+    },
+    "top5": {
+      "culprit": 0.9,
+      "agent": 1.0,
+      "agent_plus_culprit": 1.0
+    },
+    "mean_tokens": {
+      "agent": 55534,
+      "agent_plus_culprit": 47616,
+      "change": -0.14
+    },
+    "median_tokens": {
+      "agent": 50241,
+      "agent_plus_culprit": 43306,
+      "change": -0.14
+    },
+    "mean_tool_calls": {
+      "agent": 14.9,
+      "agent_plus_culprit": 8.8,
+      "change": -0.41
+    },
+    "cases_with_fewer_tool_calls": "10/10",
+    "cases_with_fewer_tokens": "7/10"
+  }
 }

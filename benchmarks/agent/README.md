@@ -19,19 +19,26 @@ Three arms, same 10 regressions, same scoring rules:
 | Introducing commit ranked #1 | 80% | **90%** | **90%** |
 | Introducing commit in top 5 | 90% | **100%** | **100%** |
 
-Cost, over the 9 cases where both agent arms ran the same problem:
+Cost, over all 10 cases, both agent arms on the same problems:
 
 | | B: agent | C: agent + culprit | change |
 |---|---|---|---|
-| mean tokens | 55,639 | 48,014 | **-14%** |
-| mean tool calls | 15.0 | 8.9 | **-41%** |
+| mean tokens | 55,534 | 47,616 | **-14%** |
+| median tokens | 50,241 | 43,306 | **-14%** |
+| mean tool calls | 14.9 | 8.8 | **-41%** |
 
-culprit itself takes no tokens and under a second.
+That is about 8,000 tokens saved per investigation, already net of the tokens the
+agent spends reading culprit's output, which are counted in column C. culprit's own
+run is one deterministic call, no model, under a second.
 
 **The agent beats culprit on accuracy, and culprit does not make the agent more
-accurate. What it does is get the agent to the same answer in about half the
-steps, in 9 of 9 cases with no reversals.** On the hardest case the agent needed
-42 tool calls alone and 16 with culprit.
+accurate. What it does is get the agent to the same answer in roughly half the
+steps.** Tool calls fell in 10 of 10 cases. Tokens fell in 7 of 10, and rose
+slightly in three short cases where the extra reading was not repaid. On the
+hardest case the agent needed 42 tool calls and 124k tokens alone, against 16 calls
+and 84k with culprit. The mean is not an artifact of that one case: the median
+saving is also 14%, and excluding it entirely still leaves -9% tokens and -33%
+tool calls.
 
 culprit is an accelerator for an agent, not a replacement for one. Any claim that
 it finds root causes better than a capable agent is not supported by this data.
