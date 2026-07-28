@@ -30,10 +30,10 @@
 
 ## Why an agent needs this
 
-An agent is good at writing a patch and bad at knowing whether the patch is **done**.
-It cannot see that the helper it just changed has three other callers, or that the bug
-it is fixing was introduced by a refactor two years ago. culprit answers both from git
-history, as structured JSON it can act on rather than prose it has to interpret:
+An agent can dig through git history to find what broke, and it is good at it. What it
+will not reliably do is spend a dozen tool calls on that every time, or stop and check
+whether the helper it just changed has three other callers before it commits. culprit
+turns both into one deterministic call that returns structured JSON it can act on:
 
 | The agent asks | culprit answers |
 |---|---|
@@ -41,7 +41,7 @@ history, as structured JSON it can act on rather than prose it has to interpret:
 | "Is my fix complete?" | `verify_fix`: missed call sites, whether a test shipped, a risk level |
 | "What could this change break?" | Reverse-import dependents, covering tests, high-risk shared modules |
 
-- ⚡️ **Instant.** No test runs, no bisect. It blames the fix's own lines back through refactors.
+- ⚡️ **Instant.** No test runs, no bisect. Benchmarked at 41% fewer agent tool calls.
 - 🔒 **Read-only and offline.** Never writes to your repo or PR. No API key, no network.
 - 🔌 **MCP-native.** 11 tools over stdio, on the official MCP registry, plus a one-command plugin.
 - 🗣️ **Language-agnostic.** Suspects work anywhere git does. Blast radius reads 12 language families.
@@ -60,6 +60,32 @@ the removed lines to rank the commits that introduced the bug.
 
 Deterministic and offline, on large C codebases the engine has never seen. Reproduce with
 `python benchmarks/run.py`, which clones the repos and scores every case.
+
+### But an agent can run `git blame` itself
+
+It can, and it is good at it. So the honest question is not whether culprit is accurate,
+but whether it beats or helps an agent that has git and no culprit. Same 10 regressions,
+three arms, isolated so no arm can read the answer from the fix commit:
+
+| | culprit alone | agent alone | agent + culprit |
+|---|---|---|---|
+| Introducing commit ranked #1 | 80% | **90%** | **90%** |
+| Introducing commit in top 5 | 90% | **100%** | **100%** |
+| Mean tool calls to get there | 1 | 14.9 | **8.8** (-41%) |
+| Mean tokens to get there | ~0 | 55,534 | **47,616** (-14%) |
+
+**The agent wins on accuracy, and culprit does not make it more accurate. What culprit
+does is get it there in roughly half the steps for about 8,000 fewer tokens per
+investigation.** Tool calls dropped in 10 of 10 cases, tokens in 7 of 10. On the hardest
+case the agent needed 42 tool calls and 124k tokens alone, against 16 calls and 84k with
+culprit.
+
+Those savings are already net of reading culprit's output, which is counted in the third
+column. culprit's own run is one deterministic call, no model, under a second.
+
+So culprit is an accelerator for an agent, not a replacement for one, and not a smarter
+blamer than one. Method, caveats (n=10, and this slice is easier than the full 50), and
+reproduction: [`benchmarks/agent/`](benchmarks/agent/).
 
 ## Quick start
 

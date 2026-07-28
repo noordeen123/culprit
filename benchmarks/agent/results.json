@@ -1,0 +1,170 @@
+{
+  "arms": {
+    "A": "culprit alone",
+    "B": "agent alone (Opus + bash/git)",
+    "C": "agent given culprit's output first"
+  },
+  "ground_truth": "Fixes: trailer",
+  "results": [
+    {
+      "case": "00",
+      "repo": "git",
+      "expected": "2eb541e8f2",
+      "A": "top1",
+      "B": "top1",
+      "C": "top1",
+      "C_reordered": false,
+      "tokens_B": 45894,
+      "tool_calls_B": 12,
+      "tokens_C": 33302,
+      "tool_calls_C": 4
+    },
+    {
+      "case": "01",
+      "repo": "git",
+      "expected": "dabecb9db2",
+      "A": "top1",
+      "B": "top1",
+      "C": "top1",
+      "C_reordered": true,
+      "tokens_B": 66031,
+      "tool_calls_B": 16,
+      "tokens_C": 54106,
+      "tool_calls_C": 8
+    },
+    {
+      "case": "02",
+      "repo": "git",
+      "expected": "fc148b146a",
+      "A": "top1",
+      "B": "top1",
+      "C": "top1",
+      "C_reordered": true,
+      "tokens_B": 65918,
+      "tool_calls_B": 16,
+      "tokens_C": 60928,
+      "tool_calls_C": 13
+    },
+    {
+      "case": "03",
+      "repo": "git",
+      "expected": "8db2dad7a0",
+      "A": "in_set",
+      "B": "in_set",
+      "C": "in_set",
+      "C_reordered": true,
+      "tokens_B": 123965,
+      "tool_calls_B": 42,
+      "tokens_C": 83686,
+      "tool_calls_C": 16
+    },
+    {
+      "case": "04",
+      "repo": "git",
+      "expected": "a38edab7c8",
+      "A": "miss",
+      "B": "top1",
+      "C": "top1",
+      "C_reordered": true,
+      "tokens_B": 57641,
+      "tool_calls_B": 12,
+      "tokens_C": 52674,
+      "tool_calls_C": 9
+    },
+    {
+      "case": "25",
+      "repo": "systemd",
+      "expected": "b0ca987cd9",
+      "A": "top1",
+      "B": "top1",
+      "C": "top1",
+      "C_reordered": true,
+      "tokens_B": 54588,
+      "tool_calls_B": 14,
+      "tokens_C": 44029,
+      "tool_calls_C": 8
+    },
+    {
+      "case": "26",
+      "repo": "systemd",
+      "expected": "38433a6d06",
+      "A": "top1",
+      "B": "top1",
+      "C": "top1",
+      "C_reordered": true,
+      "tokens_B": 34476,
+      "tool_calls_B": 10,
+      "tokens_C": 35185,
+      "tool_calls_C": 7
+    },
+    {
+      "case": "27",
+      "repo": "systemd",
+      "expected": "38433a6d06",
+      "A": "top1",
+      "B": "top1",
+      "C": "top1",
+      "C_reordered": true,
+      "tokens_B": 36904,
+      "tool_calls_B": 9,
+      "tokens_C": 36613,
+      "tool_calls_C": 8
+    },
+    {
+      "case": "28",
+      "repo": "systemd",
+      "expected": "033be1a41b",
+      "A": "top1",
+      "B": "top1",
+      "C": "top1",
+      "C_reordered": false,
+      "tokens_B": 31590,
+      "tool_calls_B": 7,
+      "tokens_C": 33056,
+      "tool_calls_C": 5
+    },
+    {
+      "case": "29",
+      "repo": "systemd",
+      "expected": "84b79215cc",
+      "A": "top1",
+      "B": "top1",
+      "C": "top1",
+      "C_reordered": false,
+      "tokens_B": 38336,
+      "tool_calls_B": 11,
+      "tokens_C": 42583,
+      "tool_calls_C": 10
+    }
+  ],
+  "summary": {
+    "n": 10,
+    "top1": {
+      "culprit": 0.8,
+      "agent": 0.9,
+      "agent_plus_culprit": 0.9
+    },
+    "top5": {
+      "culprit": 0.9,
+      "agent": 1.0,
+      "agent_plus_culprit": 1.0
+    },
+    "mean_tokens": {
+      "agent": 55534,
+      "agent_plus_culprit": 47616,
+      "change": -0.14
+    },
+    "median_tokens": {
+      "agent": 50241,
+      "agent_plus_culprit": 43306,
+      "change": -0.14
+    },
+    "mean_tool_calls": {
+      "agent": 14.9,
+      "agent_plus_culprit": 8.8,
+      "change": -0.41
+    },
+    "cases_with_fewer_tool_calls": "10/10",
+    "cases_with_fewer_tokens": "7/10"
+  }
+}

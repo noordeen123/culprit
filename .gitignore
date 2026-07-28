@@ -20,7 +20,6 @@ output/
 .venv/
 venv/
 superpowers
-benchmarks
 .superpowers
 .ruff_cache
 
